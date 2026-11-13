@@ -9,6 +9,8 @@ use std::{
     process::Command,
     time::Duration,
 };
+#[cfg(windows)]
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 use tauri::AppHandle;
 use tauri::Manager;
 use url::Url;
@@ -210,6 +212,22 @@ struct BrowserRow {
 }
 
 #[derive(Debug, FromRow)]
+struct BrowserRegistrationRow {
+    name: String,
+    family: String,
+}
+
+#[derive(Debug, FromRow)]
+struct RegisteredProfilePath {
+    id: String,
+    browser_name: String,
+    browser_family: String,
+    profile_name: String,
+    profile_path: String,
+    archived_at: Option<String>,
+}
+
+#[derive(Debug, FromRow)]
 struct ProfileRow {
     id: String,
     profile_name: String,
@@ -235,6 +253,26 @@ struct LaunchRow {
 struct LaunchSpec {
     executable: PathBuf,
     args: Vec<String>,
+    profile_name: String,
+    profile_path: String,
+    requested_url: String,
+    reused_existing_session: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchFeedback {
+    executable_path: String,
+    profile_name: String,
+    profile_path: String,
+    process_id: u32,
+    process_created: bool,
+    executable_validated: bool,
+    profile_validated: bool,
+    profile_conflict_check: String,
+    url_navigation_requested: bool,
+    launch_outcome: String,
+    message: String,
 }
 
 #[tauri::command]
@@ -298,17 +336,178 @@ pub async fn discover_profiles(
 }
 
 #[tauri::command]
-pub fn validate_profile(
-    family: String,
+pub async fn register_browser_profile(
+    app: AppHandle,
+    browser_id: String,
+    profile_name: String,
     profile_path: String,
     user_data_directory: Option<String>,
+    detection_method: String,
 ) -> Result<DetectedProfile, String> {
-    validate_profile_paths(
-        &family,
+    let pool = database(&app).await?;
+    register_browser_profile_transaction(
+        &pool,
+        &browser_id,
+        &profile_name,
         &profile_path,
         user_data_directory.as_deref(),
-        "manual",
+        &detection_method,
     )
+    .await
+}
+
+async fn register_browser_profile_transaction(
+    pool: &SqlitePool,
+    browser_id: &str,
+    profile_name: &str,
+    profile_path: &str,
+    user_data_directory: Option<&str>,
+    detection_method: &str,
+) -> Result<DetectedProfile, String> {
+    let profile_name = profile_name.trim();
+    if profile_name.is_empty() || profile_name.chars().count() > 100 {
+        return Err("Profile name must contain 1–100 characters.".into());
+    }
+    if !matches!(detection_method, "manual" | "automatic") {
+        return Err(
+            "Profile registration method is invalid. Please retry from Browser Profiles.".into(),
+        );
+    }
+
+    // BEGIN IMMEDIATE serializes profile registrations before the duplicate-path
+    // check, so a concurrent registration cannot pass the same check in parallel.
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await.map_err(db_error)?;
+    let browser = sqlx::query_as::<_, BrowserRegistrationRow>(
+        "SELECT name,family FROM browsers WHERE id=? AND availability_status != 'archived'",
+    )
+    .bind(browser_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(db_error)?
+    .ok_or_else(|| "That browser is no longer registered or is archived.".to_string())?;
+
+    let checked = validate_profile_paths(
+        &browser.family,
+        profile_path,
+        user_data_directory,
+        detection_method,
+    )?;
+    let requested_key = normalized_profile_path_key(&checked.profile_path);
+
+    let registered = sqlx::query_as::<_, RegisteredProfilePath>(
+        "SELECT bp.id,b.name AS browser_name,b.family AS browser_family,bp.profile_name,bp.profile_path,bp.archived_at FROM browser_profiles bp JOIN browsers b ON b.id=bp.browser_id WHERE bp.browser_id != ? ORDER BY (bp.archived_at IS NULL) DESC,bp.created_at",
+    )
+    .bind(browser_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(db_error)?;
+
+    if let Some(existing) = registered.into_iter().find(|row| {
+        row.archived_at.is_none() && normalized_profile_path_key(&row.profile_path) == requested_key
+    }) {
+        return Err(format!(
+            "This directory is already registered as the active profile '{}' for {} ({}). It cannot also be registered for {} ({}). Select a different directory or use the existing browser registration. No profile record was changed.",
+            existing.profile_name,
+            existing.browser_name,
+            existing.browser_family,
+            browser.name,
+            browser.family,
+        ));
+    }
+
+    let same_browser_profiles = sqlx::query_as::<_, RegisteredProfilePath>(
+        "SELECT bp.id,b.name AS browser_name,b.family AS browser_family,bp.profile_name,bp.profile_path,bp.archived_at FROM browser_profiles bp JOIN browsers b ON b.id=bp.browser_id WHERE bp.browser_id=? ORDER BY (bp.archived_at IS NULL) DESC,bp.created_at",
+    )
+    .bind(browser_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(db_error)?;
+    if let Some(existing) = same_browser_profiles
+        .into_iter()
+        .find(|row| normalized_profile_path_key(&row.profile_path) == requested_key)
+    {
+        sqlx::query("UPDATE browser_profiles SET profile_name=?,profile_path=?,user_data_directory=?,detection_method=?,availability_status='available',archived_at=NULL,updated_at=datetime('now') WHERE id=?")
+            .bind(profile_name)
+            .bind(&checked.profile_path)
+            .bind(&checked.user_data_directory)
+            .bind(detection_method)
+            .bind(existing.id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_error)?;
+    } else {
+        sqlx::query("INSERT INTO browser_profiles(id,browser_id,profile_name,profile_path,user_data_directory,detection_method,availability_status) VALUES(?,?,?,?,?,?,?)")
+            .bind(Uuid::new_v4().to_string())
+            .bind(browser_id)
+            .bind(profile_name)
+            .bind(&checked.profile_path)
+            .bind(&checked.user_data_directory)
+            .bind(detection_method)
+            .bind("available")
+            .execute(&mut *tx)
+            .await
+            .map_err(db_error)?;
+    }
+    tx.commit().await.map_err(db_error)?;
+    Ok(checked)
+}
+
+#[cfg(windows)]
+fn normalized_profile_path_key(path: &str) -> String {
+    let canonical = Path::new(path)
+        .canonicalize()
+        .unwrap_or_else(|_| PathBuf::from(path));
+    normalize_windows_path_text(&canonical.to_string_lossy())
+}
+
+#[cfg(not(windows))]
+fn normalized_profile_path_key(path: &str) -> String {
+    let canonical = Path::new(path)
+        .canonicalize()
+        .unwrap_or_else(|_| PathBuf::from(path));
+    normalize_windows_path_text(&canonical.to_string_lossy())
+}
+
+fn normalize_windows_path_text(path: &str) -> String {
+    let replaced = path.replace('/', "\\");
+    let unprefixed = replaced
+        .strip_prefix("\\\\?\\UNC\\")
+        .map(|rest| format!("\\\\{rest}"))
+        .or_else(|| replaced.strip_prefix("\\\\?\\").map(str::to_owned))
+        .unwrap_or(replaced);
+
+    let (prefix, rest) = if let Some(rest) = unprefixed.strip_prefix("\\\\") {
+        ("\\\\".to_owned(), rest)
+    } else if unprefixed.len() >= 3
+        && unprefixed.as_bytes()[1] == b':'
+        && unprefixed.as_bytes()[2] == b'\\'
+    {
+        (unprefixed[..3].to_owned(), &unprefixed[3..])
+    } else if unprefixed.starts_with('\\') {
+        ("\\".to_owned(), unprefixed.trim_start_matches('\\'))
+    } else {
+        (String::new(), unprefixed.as_str())
+    };
+
+    let mut parts: Vec<&str> = Vec::new();
+    for component in rest.split('\\') {
+        match component {
+            "" | "." => {}
+            ".." if parts.last().is_some_and(|part| *part != "..") => {
+                parts.pop();
+            }
+            ".." if prefix.is_empty() => parts.push(component),
+            ".." => {}
+            value => parts.push(value),
+        }
+    }
+    let mut normalized = format!("{prefix}{}", parts.join("\\"));
+    if cfg!(windows) {
+        // Windows filesystems are case-insensitive; Unicode path case-folding is
+        // not needed for browser profile paths used by this application.
+        normalized = normalized.to_lowercase();
+    }
+    normalized.trim_end_matches('\\').to_owned()
 }
 
 #[tauri::command]
@@ -357,7 +556,7 @@ pub async fn refresh_profile_availability(
 }
 
 #[tauri::command]
-pub async fn launch_account(app: AppHandle, account_id: String) -> Result<(), String> {
+pub async fn launch_account(app: AppHandle, account_id: String) -> Result<LaunchFeedback, String> {
     let pool = database(&app).await?;
     let record = sqlx::query_as::<_, LaunchRow>(
         "SELECT a.id AS account_id,a.name AS account_name,a.conversation_url,b.family AS browser_family,b.executable_path,b.availability_status AS browser_availability,bp.id AS profile_id,bp.profile_name,bp.profile_path,bp.user_data_directory,bp.availability_status AS profile_availability FROM accounts a JOIN browser_profiles bp ON bp.id=a.browser_profile_id JOIN browsers b ON b.id=bp.browser_id WHERE a.id=? AND a.archived_at IS NULL AND bp.archived_at IS NULL")
@@ -377,6 +576,7 @@ pub async fn launch_account(app: AppHandle, account_id: String) -> Result<(), St
         .as_deref()
         .filter(|s| !s.trim().is_empty())
         .unwrap_or("https://claude.ai/");
+    validate_claude_url(url)?;
     let spec = make_launch_spec(
         &record.browser_family,
         &record.executable_path,
@@ -385,13 +585,22 @@ pub async fn launch_account(app: AppHandle, account_id: String) -> Result<(), St
         &record.profile_name,
         url,
     )?;
-    spec.spawn()?;
-    record_launch(&pool, &record).await?;
-    Ok(())
+    let process_id = spec.spawn().map_err(|error| spec.spawn_error(error))?;
+    let mut feedback = spec.feedback(process_id);
+    if let Err(error) = record_launch(&pool, &record, process_id).await {
+        feedback
+            .message
+            .push_str(&format!(" Activity logging failed: {error}"));
+    }
+    Ok(feedback)
 }
 
 #[tauri::command]
-pub async fn test_profile_launch(app: AppHandle, profile_id: String) -> Result<(), String> {
+pub async fn test_profile_launch(
+    app: AppHandle,
+    profile_id: String,
+    test_url: String,
+) -> Result<LaunchFeedback, String> {
     let pool = database(&app).await?;
     let row = sqlx::query_as::<_, (String, String, String, Option<String>, String, String)>(
         "SELECT b.family,b.executable_path,b.availability_status,bp.user_data_directory,bp.profile_name,bp.profile_path FROM browser_profiles bp JOIN browsers b ON b.id=bp.browser_id WHERE bp.id=? AND bp.archived_at IS NULL")
@@ -403,25 +612,62 @@ pub async fn test_profile_launch(app: AppHandle, profile_id: String) -> Result<(
                 .into(),
         );
     }
-    let spec = make_launch_spec(
-        &row.0,
-        &row.1,
-        &row.5,
-        row.3.as_deref(),
-        &row.4,
-        "about:blank",
-    )?;
-    spec.spawn()?;
-    sqlx::query("UPDATE browser_profiles SET last_accessed_at=datetime('now'),availability_status='available',updated_at=datetime('now') WHERE id=?")
-        .bind(profile_id).execute(&pool).await.map_err(db_error)?;
-    Ok(())
+    let spec = make_launch_spec(&row.0, &row.1, &row.5, row.3.as_deref(), &row.4, &test_url)?;
+    let process_id = spec.spawn().map_err(|error| spec.spawn_error(error))?;
+    let mut feedback = spec.feedback(process_id);
+    if let Err(error) = sqlx::query("UPDATE browser_profiles SET last_accessed_at=datetime('now'),availability_status='available',updated_at=datetime('now') WHERE id=?")
+        .bind(profile_id).execute(&pool).await.map_err(db_error)
+    {
+        feedback.message.push_str(&format!(" Profile access time could not be saved: {error}"));
+    }
+    Ok(feedback)
 }
 
 impl LaunchSpec {
-    fn spawn(&self) -> Result<(), String> {
+    fn spawn(&self) -> Result<u32, String> {
         let mut command = Command::new(&self.executable);
         command.args(&self.args);
-        command.spawn().map(|_| ()).map_err(|e| format!("Could not launch this browser profile: {e}. Check the executable path and close any browser window that reports the profile is already in use."))
+        command
+            .spawn()
+            .map(|child| child.id())
+            .map_err(|e| e.to_string())
+    }
+
+    fn spawn_error(&self, error: String) -> String {
+        format!(
+            "Launch requested. Executable validated: {}. Profile validated: {}. URL navigation requested for {}. Process creation failed: {error}. Launch outcome is unknown. Check the executable, profile permissions, and any browser conflict; close the test browser manually if it opened.",
+            self.executable.display(), self.profile_name, self.requested_url
+        )
+    }
+
+    fn feedback(&self, process_id: u32) -> LaunchFeedback {
+        let profile_conflict_check = if self.reused_existing_session {
+            "An exact Chromium profile match was found; the request uses that same browser session."
+                .to_owned()
+        } else {
+            "No matching active profile process was detected at check time.".to_owned()
+        };
+        let forwarding_note = if self.reused_existing_session {
+            " The reported PID belongs to this start request; Chromium may forward it to the existing session."
+        } else {
+            ""
+        };
+        LaunchFeedback {
+            executable_path: self.executable.to_string_lossy().into_owned(),
+            profile_name: self.profile_name.clone(),
+            profile_path: self.profile_path.clone(),
+            process_id,
+            process_created: true,
+            executable_validated: true,
+            profile_validated: true,
+            profile_conflict_check: profile_conflict_check.clone(),
+            url_navigation_requested: true,
+            launch_outcome: "unknown".into(),
+            message: format!(
+                "Launch requested. Executable validated: {}. Profile validated: {} at {}. {profile_conflict_check} Process creation succeeded (PID {process_id}) for {}. URL navigation requested: {}. Launch outcome is unknown until you verify the browser window and page.{forwarding_note} No authentication was checked. Close the test browser manually.",
+                self.executable.display(), self.profile_name, self.profile_path, self.executable.display(), self.requested_url
+            ),
+        }
     }
 }
 
@@ -435,17 +681,25 @@ fn make_launch_spec(
 ) -> Result<LaunchSpec, String> {
     let executable = validate_browser_path(family.to_owned(), executable.to_owned())?;
     let profile = validate_profile_paths(family, profile_path, user_data_directory, "registered")?;
-    ensure_profile_not_locked(
+    let url = validate_profile_launch_url(url).map_err(|error| {
+        format!(
+            "Launch request rejected. Executable validated: {}. Profile validated: {}. URL validation failed: {error}. No browser process was started.",
+            executable.canonical_path, profile.profile_name
+        )
+    })?;
+    let reused_existing_session = ensure_profile_not_locked(
         family,
+        &executable.canonical_path,
         &profile.profile_path,
         profile.user_data_directory.as_deref(),
-    )?;
+    )
+    .map_err(|error| {
+        format!(
+            "Launch requested. Executable validated: {}. Profile validated: {}. Potential profile conflict: {error}. URL navigation was not requested because the launch was blocked.",
+            executable.canonical_path, profile.profile_name
+        )
+    })?;
     let _display_name = profile_name;
-    let url = if url == "about:blank" {
-        url.to_owned()
-    } else {
-        validate_claude_url(url)?
-    };
     let mut args = Vec::new();
     match family {
         "chrome" | "edge" | "brave" | "opera" => {
@@ -463,15 +717,19 @@ fn make_launch_spec(
         "firefox" => {
             args.push("-no-remote".into());
             args.push("-profile".into());
-            args.push(profile.profile_path);
+            args.push(profile.profile_path.clone());
             args.push("-new-window".into());
         }
         _ => return Err("This browser family is not supported for profile launching.".into()),
     }
-    args.push(url);
+    args.push(url.clone());
     Ok(LaunchSpec {
         executable: PathBuf::from(executable.canonical_path),
         args,
+        profile_name: profile_name.to_owned(),
+        profile_path: profile.profile_path,
+        requested_url: url,
+        reused_existing_session,
     })
 }
 
@@ -486,6 +744,13 @@ fn validate_claude_url(value: &str) -> Result<String, String> {
         return Err("For safety, account URLs must use https://claude.ai/ and cannot contain embedded credentials.".into());
     }
     Ok(url.to_string())
+}
+
+fn validate_profile_launch_url(value: &str) -> Result<String, String> {
+    match value {
+        "about:blank" | "https://example.com/" => Ok(value.to_owned()),
+        _ => validate_claude_url(value),
+    }
 }
 
 #[cfg(windows)]
@@ -576,9 +841,12 @@ fn read_browser_version(_path: &Path) -> Option<String> {
 
 fn ensure_profile_not_locked(
     family: &str,
+    executable: &str,
     profile_path: &str,
     user_data_directory: Option<&str>,
-) -> Result<(), String> {
+) -> Result<bool, String> {
+    let reuse_existing =
+        matching_browser_process(family, executable, profile_path, user_data_directory)?;
     let lock_paths: Vec<PathBuf> = match family {
         "chrome" | "edge" | "brave" | "opera" => {
             let root = user_data_directory
@@ -598,12 +866,116 @@ fn ensure_profile_not_locked(
         .iter()
         .find(|path| std::fs::symlink_metadata(path).is_ok())
     {
+        if reuse_existing {
+            return Ok(true);
+        }
         return Err(format!(
-            "This browser profile appears to be in use (lock marker: {}). LEVI did not launch another process or alter the marker. Close the browser normally, verify the profile is no longer active, then rescan and retry.",
+            "This browser profile appears to be in use (lock marker: {}). LEVI did not launch another process or alter the marker. Close the browser normally, then retry. A lock marker by itself cannot confirm which process owns the profile.",
             marker.display()
         ));
     }
-    Ok(())
+    Ok(reuse_existing)
+}
+
+#[cfg(windows)]
+fn matching_browser_process(
+    family: &str,
+    executable: &str,
+    profile_path: &str,
+    user_data_directory: Option<&str>,
+) -> Result<bool, String> {
+    let expected_exe = Path::new(executable);
+    let mut system = System::new().map_err(|_| "Windows could not enumerate running processes. Close the browser normally before launching this profile. LEVI did not stop any process.".to_string())?;
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing()
+            .with_exe(sysinfo::UpdateKind::OnlyIfNotSet)
+            .with_cmd(sysinfo::UpdateKind::OnlyIfNotSet),
+    );
+    let expected_profile = normalize_process_path(profile_path);
+    let expected_root = user_data_directory.map(normalize_process_path);
+    for process in system.processes().values() {
+        let Some(process_exe) = process.exe() else {
+            continue;
+        };
+        if !normalize_process_path(&process_exe.to_string_lossy())
+            .eq(&normalize_process_path(&expected_exe.to_string_lossy()))
+        {
+            continue;
+        }
+        let args = process.cmd();
+        if args.is_empty() {
+            return Err("A browser process is already running, but Windows did not expose its command line. Close that browser normally before launching this profile. LEVI did not stop it.".into());
+        }
+        match family {
+            "chrome" | "edge" | "brave" | "opera" => {
+                let root = expected_root
+                    .as_deref()
+                    .ok_or_else(|| "The Chromium user-data directory is missing.".to_string())?;
+                let running_root =
+                    argument_value(args, "--user-data-dir").map(|v| normalize_process_path(&v));
+                let running_profile = argument_value(args, "--profile-directory");
+                if running_root.as_deref() == Some(root) {
+                    if running_profile.as_deref()
+                        == Path::new(profile_path).file_name().and_then(|v| v.to_str())
+                    {
+                        return Ok(true);
+                    }
+                    return Err("This browser is already using the same user-data directory with a different or unconfirmed profile. Close that browser normally before launching this profile. LEVI did not open another profile.".into());
+                }
+            }
+            "firefox" => {
+                let running_profile =
+                    argument_value(args, "-profile").map(|v| normalize_process_path(&v));
+                if running_profile.as_deref() == Some(expected_profile.as_str()) {
+                    return Err("This Firefox profile is already running. Close that Firefox window normally before using it here. LEVI did not launch another process.".into());
+                }
+                if running_profile.is_none() && !args.iter().any(|arg| arg == "-no-remote") {
+                    return Err("Firefox is running and its profile could not be identified reliably. Close Firefox normally before launching a registered profile. LEVI did not stop it.".into());
+                }
+            }
+            _ => {
+                return Err("This browser family cannot be safely checked for profile use.".into())
+            }
+        }
+    }
+    Ok(false)
+}
+
+#[cfg(not(windows))]
+fn matching_browser_process(
+    _family: &str,
+    _executable: &str,
+    _profile_path: &str,
+    _user_data_directory: Option<&str>,
+) -> Result<bool, String> {
+    Err("Reliable browser process-to-profile detection is available only on Windows. Close the browser manually before launching a registered profile.".into())
+}
+
+#[cfg(windows)]
+fn argument_value(args: &[std::ffi::OsString], name: &str) -> Option<String> {
+    let prefix = format!("{name}=");
+    args.iter().enumerate().find_map(|(index, arg)| {
+        let value = arg.to_string_lossy();
+        if let Some(value) = value.strip_prefix(&prefix) {
+            Some(value.trim_matches('"').to_owned())
+        } else if value == name {
+            args.get(index + 1)
+                .map(|next| next.to_string_lossy().trim_matches('"').to_owned())
+        } else {
+            None
+        }
+    })
+}
+
+#[cfg(windows)]
+fn normalize_process_path(value: &str) -> String {
+    value
+        .trim_matches('"')
+        .replace('/', "\\")
+        .trim_end_matches('\\')
+        .to_lowercase()
 }
 
 fn validate_profile_paths(
@@ -679,7 +1051,11 @@ async fn database(app: &AppHandle) -> Result<SqlitePool, String> {
     .map_err(db_error)
 }
 
-async fn record_launch(pool: &SqlitePool, record: &LaunchRow) -> Result<(), String> {
+async fn record_launch(
+    pool: &SqlitePool,
+    record: &LaunchRow,
+    process_id: u32,
+) -> Result<(), String> {
     let mut tx = pool.begin().await.map_err(db_error)?;
     sqlx::query("UPDATE accounts SET last_accessed_at=datetime('now'),updated_at=datetime('now') WHERE id=?")
         .bind(&record.account_id).execute(&mut *tx).await.map_err(db_error)?;
@@ -687,9 +1063,9 @@ async fn record_launch(pool: &SqlitePool, record: &LaunchRow) -> Result<(), Stri
         .bind(&record.profile_id).execute(&mut *tx).await.map_err(db_error)?;
     sqlx::query("UPDATE browsers SET last_accessed_at=datetime('now'),availability_status='available',updated_at=datetime('now') WHERE executable_path=?")
         .bind(&record.executable_path).execute(&mut *tx).await.map_err(db_error)?;
-    sqlx::query("INSERT INTO activity_logs(id,activity_type,description,source,account_id) VALUES(?, 'account_launched', ?, 'system', ?)")
+    sqlx::query("INSERT INTO activity_logs(id,activity_type,description,source,account_id) VALUES(?, 'account_launch_requested', ?, 'system', ?)")
         .bind(Uuid::new_v4().to_string())
-        .bind(format!("Opened {} in {} profile {}", record.account_name, browser_name(&record.browser_family), record.profile_name))
+        .bind(format!("Process start requested for {} in {} profile {} (PID {}; executable {}). Browser window and URL were not confirmed.", record.account_name, browser_name(&record.browser_family), record.profile_name, process_id, record.executable_path))
         .bind(&record.account_id).execute(&mut *tx).await.map_err(db_error)?;
     tx.commit().await.map_err(db_error)
 }
@@ -1012,6 +1388,60 @@ mod tests {
         assert!(validate_claude_url("http://claude.ai/").is_err());
         assert!(validate_claude_url("https://example.com/").is_err());
         assert!(validate_claude_url("https://user:pass@claude.ai/").is_err());
+        assert!(validate_claude_url("not a url").is_err());
+        assert_eq!(
+            validate_profile_launch_url("https://example.com/").unwrap(),
+            "https://example.com/"
+        );
+        assert!(validate_profile_launch_url("https://example.com/extra").is_err());
+    }
+
+    #[test]
+    fn invalid_browser_and_profile_paths_return_actionable_errors() {
+        let temp = tempfile::tempdir().unwrap();
+        let missing_exe = temp.path().join("missing-browser.exe");
+        let error = validate_browser_path("chrome".into(), missing_exe.to_string_lossy().into())
+            .unwrap_err();
+        assert!(error.contains("existing .exe file"));
+
+        let missing_profile = temp.path().join("missing-profile");
+        let error =
+            validate_profile_paths("chrome", missing_profile.to_str().unwrap(), None, "manual")
+                .unwrap_err();
+        assert!(error.contains("existing directory"));
+
+        let profile = temp.path().join("Profile 1");
+        fs::create_dir(&profile).unwrap();
+        let error = validate_profile_paths("chrome", profile.to_str().unwrap(), None, "manual")
+            .unwrap_err();
+        assert!(error.contains("user-data directory"));
+
+        let error =
+            validate_profile_paths("unsupported", profile.to_str().unwrap(), None, "manual")
+                .unwrap_err();
+        assert!(error.contains("supported browser family"));
+    }
+
+    #[test]
+    fn process_start_feedback_keeps_browser_outcome_unknown() {
+        let spec = LaunchSpec {
+            executable: PathBuf::from(r"C:\Browsers\chrome.exe"),
+            args: vec!["https://example.com/".into()],
+            profile_name: "Temporary test".into(),
+            profile_path: r"C:\Temp\levi-test\Profile 1".into(),
+            requested_url: "https://example.com/".into(),
+            reused_existing_session: false,
+        };
+        let feedback = spec.feedback(4242);
+        assert_eq!(feedback.process_id, 4242);
+        assert!(feedback.process_created);
+        assert!(feedback.executable_validated);
+        assert!(feedback.profile_validated);
+        assert!(feedback.url_navigation_requested);
+        assert_eq!(feedback.launch_outcome, "unknown");
+        assert!(feedback.message.contains("Process creation succeeded"));
+        assert!(feedback.message.contains("Launch outcome is unknown"));
+        assert!(feedback.message.contains("Close the test browser manually"));
     }
 
     #[test]
@@ -1106,6 +1536,259 @@ mod tests {
             lock.exists(),
             "LEVI must not remove the browser lock marker"
         );
+    }
+
+    async fn profile_registration_test_pool(
+        path: &Path,
+        browsers: &[(&str, &str, &str)],
+    ) -> SqlitePool {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(5)
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(path)
+                    .create_if_missing(true)
+                    .foreign_keys(true)
+                    .busy_timeout(Duration::from_secs(10)),
+            )
+            .await
+            .unwrap();
+        sqlx::query("CREATE TABLE browsers(id TEXT PRIMARY KEY,name TEXT NOT NULL,family TEXT NOT NULL,availability_status TEXT NOT NULL)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("CREATE TABLE browser_profiles(id TEXT PRIMARY KEY,browser_id TEXT NOT NULL REFERENCES browsers(id),profile_name TEXT NOT NULL,profile_path TEXT NOT NULL,user_data_directory TEXT,detection_method TEXT NOT NULL,availability_status TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT (datetime('now')),updated_at TEXT NOT NULL DEFAULT (datetime('now')),archived_at TEXT,UNIQUE(browser_id,profile_path))")
+            .execute(&pool)
+            .await
+            .unwrap();
+        for (id, name, family) in browsers {
+            sqlx::query("INSERT INTO browsers(id,name,family,availability_status) VALUES(?,?,?,'available')")
+                .bind(id)
+                .bind(name)
+                .bind(family)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        pool
+    }
+
+    async fn register_test_profile(
+        pool: &SqlitePool,
+        browser_id: &str,
+        profile_path: &Path,
+        user_data_directory: Option<&Path>,
+    ) -> Result<DetectedProfile, String> {
+        register_browser_profile_transaction(
+            pool,
+            browser_id,
+            "Temporary test profile",
+            &profile_path.to_string_lossy(),
+            user_data_directory.map(|path| path.to_str().unwrap()),
+            "manual",
+        )
+        .await
+    }
+
+    fn create_chromium_test_profile(root: &Path, name: &str) -> PathBuf {
+        let profile = root.join(name);
+        fs::create_dir_all(&profile).unwrap();
+        profile
+    }
+
+    #[tokio::test]
+    async fn same_directory_under_different_active_browser_families_is_rejected() {
+        let temp = tempfile::tempdir().unwrap();
+        let pool = profile_registration_test_pool(
+            &temp.path().join("profile-registration-test.db"),
+            &[
+                ("firefox", "Firefox", "firefox"),
+                ("opera", "Opera", "opera"),
+            ],
+        )
+        .await;
+        let user_data = temp.path().join("firefox-user-data");
+        fs::create_dir(&user_data).unwrap();
+        let profile = create_chromium_test_profile(&user_data, "Test Profile");
+
+        register_test_profile(&pool, "firefox", &profile, None)
+            .await
+            .unwrap();
+        let error = register_test_profile(&pool, "opera", &profile, Some(&user_data))
+            .await
+            .unwrap_err();
+
+        assert!(error.contains("already registered as the active profile"));
+        assert!(error.contains("Firefox"));
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM browser_profiles")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[tokio::test]
+    async fn same_directory_under_same_browser_preserves_upsert_behavior() {
+        let temp = tempfile::tempdir().unwrap();
+        let pool = profile_registration_test_pool(
+            &temp.path().join("profile-registration-test.db"),
+            &[("chrome", "Chrome", "chrome")],
+        )
+        .await;
+        let user_data = temp.path().join("chrome-user-data");
+        fs::create_dir(&user_data).unwrap();
+        let profile = create_chromium_test_profile(&user_data, "Test Profile");
+        let first = register_test_profile(&pool, "chrome", &profile, Some(&user_data))
+            .await
+            .unwrap();
+        let equivalent = user_data.join("Nested").join("..").join("Test Profile");
+        let nested = user_data.join("Nested");
+        fs::create_dir(&nested).unwrap();
+        let second = register_browser_profile_transaction(
+            &pool,
+            "chrome",
+            "Updated test profile",
+            &equivalent.to_string_lossy(),
+            Some(user_data.to_str().unwrap()),
+            "manual",
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(first.profile_path, second.profile_path);
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT id,profile_name FROM browser_profiles WHERE browser_id='chrome'",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].1, "Updated test profile");
+    }
+
+    #[tokio::test]
+    async fn different_directories_under_different_browsers_are_accepted() {
+        let temp = tempfile::tempdir().unwrap();
+        let pool = profile_registration_test_pool(
+            &temp.path().join("profile-registration-test.db"),
+            &[("chrome", "Chrome", "chrome"), ("edge", "Edge", "edge")],
+        )
+        .await;
+        let chrome_root = temp.path().join("chrome-user-data");
+        let edge_root = temp.path().join("edge-user-data");
+        fs::create_dir(&chrome_root).unwrap();
+        fs::create_dir(&edge_root).unwrap();
+        let chrome_profile = create_chromium_test_profile(&chrome_root, "Test Profile");
+        let edge_profile = create_chromium_test_profile(&edge_root, "Test Profile");
+
+        register_test_profile(&pool, "chrome", &chrome_profile, Some(&chrome_root))
+            .await
+            .unwrap();
+        register_test_profile(&pool, "edge", &edge_profile, Some(&edge_root))
+            .await
+            .unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM browser_profiles")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 2);
+    }
+
+    #[tokio::test]
+    async fn archived_cross_family_profile_does_not_block_registration() {
+        let temp = tempfile::tempdir().unwrap();
+        let pool = profile_registration_test_pool(
+            &temp.path().join("profile-registration-test.db"),
+            &[
+                ("firefox", "Firefox", "firefox"),
+                ("opera", "Opera", "opera"),
+            ],
+        )
+        .await;
+        let root = temp.path().join("firefox-user-data");
+        fs::create_dir(&root).unwrap();
+        let profile = create_chromium_test_profile(&root, "Test Profile");
+        sqlx::query("INSERT INTO browser_profiles(id,browser_id,profile_name,profile_path,user_data_directory,detection_method,availability_status,archived_at) VALUES('archived-firefox','firefox','Old Firefox profile',?,?, 'manual','available',datetime('now'))")
+            .bind(profile.to_string_lossy().as_ref())
+            .bind(root.to_string_lossy().as_ref())
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        register_test_profile(&pool, "opera", &profile, Some(&root))
+            .await
+            .unwrap();
+
+        let archived_at: Option<String> = sqlx::query_scalar(
+            "SELECT archived_at FROM browser_profiles WHERE id='archived-firefox'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert!(archived_at.is_some());
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM browser_profiles")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 2);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_path_keys_ignore_case_prefix_and_dot_segments() {
+        let canonical =
+            normalize_windows_path_text(r"\\?\C:\Users\Test\Temp\Root\.\Profile\..\Profile");
+        let equivalent = normalize_windows_path_text(r"c:/users/test/temp/root/profile");
+        assert_eq!(canonical, equivalent);
+    }
+
+    #[tokio::test]
+    async fn nonexistent_profile_directory_keeps_existing_validation_error() {
+        let temp = tempfile::tempdir().unwrap();
+        let pool = profile_registration_test_pool(
+            &temp.path().join("profile-registration-test.db"),
+            &[("firefox", "Firefox", "firefox")],
+        )
+        .await;
+        let missing = temp.path().join("missing-profile");
+
+        let error = register_test_profile(&pool, "firefox", &missing, None)
+            .await
+            .unwrap_err();
+
+        assert!(error.contains("existing directory"));
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM browser_profiles")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn concurrent_cross_family_registrations_are_serialized() {
+        let temp = tempfile::tempdir().unwrap();
+        let pool = profile_registration_test_pool(
+            &temp.path().join("profile-registration-test.db"),
+            &[
+                ("firefox", "Firefox", "firefox"),
+                ("opera", "Opera", "opera"),
+            ],
+        )
+        .await;
+        let root = temp.path().join("test-user-data");
+        fs::create_dir(&root).unwrap();
+        let profile = create_chromium_test_profile(&root, "Test Profile");
+
+        let (firefox, opera) = tokio::join!(
+            register_test_profile(&pool, "firefox", &profile, None),
+            register_test_profile(&pool, "opera", &profile, Some(&root)),
+        );
+        assert_ne!(firefox.is_ok(), opera.is_ok());
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM browser_profiles")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 1);
     }
 
     fn account_input(name: &str, profile_id: &str) -> AccountInput {

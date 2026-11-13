@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import type Database from '@tauri-apps/plugin-sql'
-import { AlertTriangle, ArrowDownToLine, FolderOpen, Globe2, HardDrive, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from 'lucide-react'
+import { AlertTriangle, FolderOpen, Globe2, HardDrive, Play, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from 'lucide-react'
 import { errorMessage, newId } from '../../lib/database'
 import type { BrowserFamily } from '../accounts/types'
-import type { BrowserCandidate, BrowserRecord, ProfileCandidate } from './types'
+import type { BrowserCandidate, BrowserRecord, LaunchFeedback, ProfileCandidate } from './types'
 import './browsers.css'
 
 interface RawBrowser extends Omit<BrowserRecord, 'profiles' | 'account_count'> {}
@@ -31,6 +31,9 @@ export function BrowserProfilesPage({ db }: Props) {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [testUrl, setTestUrl] = useState('https://example.com/')
+  const [launchingProfileId, setLaunchingProfileId] = useState('')
+  const [awaitingManualClose, setAwaitingManualClose] = useState<{ id: string; name: string } | null>(null)
 
   const reload = useCallback(async () => {
     const [browserRows, profileRows] = await Promise.all([
@@ -92,12 +95,13 @@ export function BrowserProfilesPage({ db }: Props) {
   }
 
   async function upsertProfile(browserId: string, candidate: ProfileCandidate) {
-    const browser = browsers.find(v => v.id === browserId) ?? (await db.select<{ family: BrowserFamily }[]>('SELECT family FROM browsers WHERE id=?', [browserId]))[0]
-    if (!browser) throw new Error('That browser is no longer registered.')
-    const checked = await invoke<ProfileCandidate>('validate_profile', { family: browser.family, profilePath: candidate.profilePath, userDataDirectory: candidate.userDataDirectory })
-    await db.execute(`INSERT INTO browser_profiles(id,browser_id,profile_name,profile_path,user_data_directory,detection_method,availability_status)
-      VALUES(?,?,?,?,?,?,?) ON CONFLICT(browser_id,profile_path) DO UPDATE SET profile_name=excluded.profile_name,user_data_directory=excluded.user_data_directory,detection_method=excluded.detection_method,availability_status=excluded.availability_status,archived_at=NULL,updated_at=datetime('now')`,
-    [newId(), browserId, candidate.profileName || checked.profileName, checked.profilePath, checked.userDataDirectory, candidate.detectionMethod, checked.availabilityStatus])
+    await invoke<ProfileCandidate>('register_browser_profile', {
+      browserId,
+      profileName: candidate.profileName,
+      profilePath: candidate.profilePath,
+      userDataDirectory: candidate.userDataDirectory,
+      detectionMethod: candidate.detectionMethod,
+    })
   }
 
   async function rescan(browser: BrowserRecord) {
@@ -153,14 +157,17 @@ export function BrowserProfilesPage({ db }: Props) {
   }
 
   async function testProfile(profile: RawProfile) {
-    setError(''); setNotice('')
-    try { await invoke('test_profile_launch', { profileId: profile.id }); setNotice(`Opened ${profile.profileName} in a blank browser page. Login status was not checked.`); await reload() }
+    setError(''); setNotice(`Launch requested for ${profile.profileName}. Executable/profile validation and a process-conflict check are in progress.`); setLaunchingProfileId(profile.id)
+    try { const feedback = await invoke<LaunchFeedback>('test_profile_launch', { profileId: profile.id, testUrl }); setNotice(feedback.message); setAwaitingManualClose({ id: profile.id, name: profile.profileName }); await reload() }
     catch (e) { setError(errorMessage(e)) }
+    finally { setLaunchingProfileId('') }
   }
 
   return <div className="feature-page browser-page">
     <div className="feature-header"><div><div className="eyebrow">OPERATIONS / BROWSER PROFILES</div><h1>Browser profiles</h1><p>Register existing installations and profiles. LEVI never edits browser data.</p></div><div className="browser-header-actions"><button className="button-secondary" onClick={() => void scanInstalled()} disabled={busy}><Search size={14}/> Detect browsers</button><button className="button-primary" onClick={() => { setBrowserForm(blankBrowser); setError(''); setBrowserFormOpen(true) }}><Plus size={16}/> Add browser</button></div></div>
-    {notice && <div className="inline-notice">{notice}</div>}{error && !browserFormOpen && !profileBrowserId && <div className="inline-error" role="alert">{error}</div>}
+    {notice && <div className="inline-notice" role="status">{notice}</div>}{error && !browserFormOpen && !profileBrowserId && <div className="inline-error" role="alert">{error}</div>}
+    <section className="browser-test-panel"><div><strong>Controlled test launch</strong><p>Add the installed browser manually, then register a newly created temporary profile. Do not use “Register” on detected installations for this test; it also registers discovered profile paths. Verify the browser window and selected page, then close it manually before the next test. Launch status remains unknown until you confirm what appeared.</p></div><label>Harmless test URL<select value={testUrl} onChange={e => setTestUrl(e.target.value)}><option value="https://example.com/">https://example.com/</option><option value="about:blank">about:blank (offline)</option></select></label></section>
+    {awaitingManualClose && <div className="inline-notice manual-close-gate" role="status"><span>Manual step: close the browser window for test profile {awaitingManualClose.name}. The app cannot confirm the page loaded or that this process exited.</span><button className="button-secondary" onClick={() => setAwaitingManualClose(null)}>I closed it (or confirmed no window opened)</button></div>}
     {detected.length > 0 && <section className="detected-section"><div className="detected-heading"><div><h2>Detected installations</h2><p>Only executable and browser profile display metadata are read.</p></div><button className="card-icon-button" onClick={() => setDetected([])} aria-label="Dismiss detected browsers"><X size={15}/></button></div><div className="detected-list">{detected.map(candidate => <div className="detected-row" key={`${candidate.family}:${candidate.executablePath}`}><div className="browser-logo"><Globe2 size={17}/></div><div className="detected-meta"><strong>{candidate.name}</strong><span>{candidate.executablePath}</span><small>{candidate.profiles.length} profile{candidate.profiles.length === 1 ? '' : 's'} found · {candidate.detectionMethod}</small></div><button className="button-secondary" onClick={() => void addDetectedBrowser(candidate)} disabled={busy}><Plus size={13}/> Register</button></div>)}</div></section>}
     <label className="browser-search searchbox"><Search size={15}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search browsers, paths, profiles"/></label>
     {visibleBrowsers.length ? <div className="browser-list">{visibleBrowsers.map(browser => {
@@ -169,7 +176,7 @@ export function BrowserProfilesPage({ db }: Props) {
         <div className="browser-card-header"><div className="browser-logo"><Globe2 size={18}/></div><div className="browser-summary"><h2>{browser.name}</h2><p>{familyLabel(browser.family)} · {browser.browser_version ?? 'Unknown version'}</p></div><span className={`availability-tag ${browser.availability_status}`}>{browser.availability_status}</span><button className="button-secondary" disabled={busy} onClick={() => void rescan(browser)}><RefreshCw size={13}/> Rescan</button><button className="button-secondary" onClick={() => addProfile(browser.id, [])}><Plus size={13}/> Add profile</button></div>
         <div className="browser-path"><HardDrive size={13}/><span>{browser.executable_path}</span></div>
         <div className="browser-card-meta"><span><strong>{browserProfiles.length}</strong> registered profiles</span><span><strong>{browser.account_count}</strong> linked accounts</span><span>Added by {browser.detection_method === 'manual' ? 'you' : 'detection'}</span></div>
-        {browserProfiles.length > 0 && <div className="profile-table"><div className="profile-table-head"><span>PROFILE</span><span>LOCATION</span><span>ACCOUNTS</span><span>AVAILABILITY</span><span>ACTIONS</span></div>{browserProfiles.map(profile => <div className="profile-row" key={profile.id}><div className="profile-name-cell"><FolderOpen size={14}/><strong>{profile.profileName}</strong></div><span className="profile-path-cell" title={profile.profilePath}>{profile.profilePath}</span><span className="profile-account-count">{profile.account_count}</span><span className={`availability-tag ${profile.availabilityStatus}`}>{profile.availabilityStatus}</span><div className="profile-actions"><button className="card-icon-button" onClick={() => void testProfile(profile)} title="Test profile launch" aria-label={`Test ${profile.profileName}`}><ArrowDownToLine size={14}/></button><button className="card-icon-button archive-action" onClick={() => void removeRegistration(profile)} title="Remove registration" aria-label={`Remove ${profile.profileName} registration`}><Trash2 size={14}/></button></div></div>)}</div>}
+        {browserProfiles.length > 0 && <div className="profile-table"><div className="profile-table-head"><span>PROFILE</span><span>LOCATION</span><span>ACCOUNTS</span><span>AVAILABILITY</span><span>ACTIONS</span></div>{browserProfiles.map(profile => <div className="profile-row" key={profile.id}><div className="profile-name-cell"><FolderOpen size={14}/><strong>{profile.profileName}</strong></div><span className="profile-path-cell" title={profile.profilePath}>{profile.profilePath}</span><span className="profile-account-count">{profile.account_count}</span><span className={`availability-tag ${profile.availabilityStatus}`}>{profile.availabilityStatus}</span><div className="profile-actions"><button className="button-secondary test-launch-button" disabled={Boolean(launchingProfileId || awaitingManualClose) || profile.availabilityStatus !== 'available'} onClick={() => void testProfile(profile)} title="Test Launch" aria-label={`Test Launch ${profile.profileName}`}>{launchingProfileId === profile.id ? 'Starting…' : <><Play size={12}/> Test Launch</>}</button><button className="card-icon-button archive-action" disabled={awaitingManualClose?.id === profile.id} onClick={() => void removeRegistration(profile)} title="Remove registration" aria-label={`Remove ${profile.profileName} registration`}><Trash2 size={14}/></button></div></div>)}</div>}
         {!browserProfiles.length && <div className="no-profiles"><AlertTriangle size={14}/> No profiles registered yet. Rescan or add an existing profile folder.</div>}
       </section>
     })}</div> : <div className="empty-feature"><div className="empty-feature-icon"><Globe2 size={20}/></div><strong>{browsers.length ? 'No browsers match your search' : 'Register your existing browsers'}</strong><p>Detect installed browsers or add one manually, then register its existing profile folders.</p><button className="button-secondary" onClick={() => void scanInstalled()}><Search size={14}/> Detect installed browsers</button></div>}
@@ -181,7 +188,7 @@ export function BrowserProfilesPage({ db }: Props) {
     {!!profileBrowserId && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setProfileBrowserId('') }}><form className="form-modal" onSubmit={saveProfile}>
       <div className="modal-heading"><div><span className="eyebrow">PROFILE REGISTRY</span><h2>Add existing profile</h2></div><button type="button" className="icon-button" onClick={() => setProfileBrowserId('')} aria-label="Close"><X size={17}/></button></div>
       {profileCandidates.length > 0 && <label className="candidate-select">Detected profile<select defaultValue="" onChange={e => { const p = profileCandidates.find(c => c.profilePath === e.target.value); if (p) setProfileForm({ profile_name: p.profileName, profile_path: p.profilePath, user_data_directory: p.userDataDirectory ?? '' }) }}><option value="">Enter a different profile or select one</option>{profileCandidates.map(p => <option value={p.profilePath} key={p.profilePath}>{p.profileName} · {p.availabilityStatus}</option>)}</select></label>}
-      <div className="modal-fields"><label>Profile display name<input required maxLength={100} value={profileForm.profile_name} onChange={e => setProfileForm({ ...profileForm, profile_name: e.target.value })} placeholder="e.g. Personal"/></label><label className="wide-field">Existing profile folder<div className="path-picker"><input required value={profileForm.profile_path} onChange={e => setProfileForm({ ...profileForm, profile_path: e.target.value })} placeholder="Select an existing profile directory"/><button type="button" className="button-secondary" onClick={() => void pickFolder('profile_path')}><FolderOpen size={13}/> Choose</button></div></label>{families.find(v => v.id === browsers.find(b => b.id === profileBrowserId)?.family)?.id !== 'firefox' && <label className="wide-field">Existing user-data directory<div className="path-picker"><input required value={profileForm.user_data_directory} onChange={e => setProfileForm({ ...profileForm, user_data_directory: e.target.value })} placeholder="Parent folder that contains the profile"/><button type="button" className="button-secondary" onClick={() => void pickFolder('user_data_directory')}><FolderOpen size={13}/> Choose</button></div></label>}<div className="wide-field safety-note"><ShieldCheck size={14}/> Removing this registration only removes the app's reference. Browser folders and data are never deleted or modified.</div></div>
+      <div className="modal-fields"><label>Profile display name<input required maxLength={100} value={profileForm.profile_name} onChange={e => setProfileForm({ ...profileForm, profile_name: e.target.value })} placeholder="e.g. Temporary test"/></label><label className="wide-field">Existing profile folder<div className="path-picker"><input required value={profileForm.profile_path} onChange={e => setProfileForm({ ...profileForm, profile_path: e.target.value })} placeholder="Select a newly created temporary profile directory"/><button type="button" className="button-secondary" onClick={() => void pickFolder('profile_path')}><FolderOpen size={13}/> Choose</button></div></label>{families.find(v => v.id === browsers.find(b => b.id === profileBrowserId)?.family)?.id !== 'firefox' && <label className="wide-field">Existing user-data directory<div className="path-picker"><input required value={profileForm.user_data_directory} onChange={e => setProfileForm({ ...profileForm, user_data_directory: e.target.value })} placeholder="Dedicated temporary parent directory"/><button type="button" className="button-secondary" onClick={() => void pickFolder('user_data_directory')}><FolderOpen size={13}/> Choose</button></div></label>}<div className="wide-field safety-note"><ShieldCheck size={14}/> For testing, create a new empty directory under TEMP and use only that directory. Never select a normal browser profile. For Chromium, create the profile folder directly inside its dedicated temporary user-data directory. Closing the test browser is manual; LEVI does not stop it or delete profile files.</div></div>
       {error && <div className="inline-error" role="alert">{error}</div>}<div className="modal-actions"><button type="button" className="button-secondary" onClick={() => setProfileBrowserId('')}>Cancel</button><button className="button-primary" disabled={busy}>{busy ? 'Validating…' : 'Register profile'}</button></div>
     </form></div>}
   </div>

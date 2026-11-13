@@ -4,6 +4,7 @@ import type Database from '@tauri-apps/plugin-sql'
 import { Archive, ArrowDownWideNarrow, ExternalLink, Pencil, Plus, Search, UserRound, X } from 'lucide-react'
 import { errorMessage, newId } from '../../lib/database'
 import type { AccountRecord, AccountStatus, ProfileOption } from './types'
+import type { LaunchFeedback } from '../browsers/types'
 import './accounts.css'
 
 interface ProjectOption { id: string; name: string }
@@ -87,8 +88,8 @@ export function AccountsPage({ db, onChanged }: Props) {
   }
 
   async function launch(account: AccountRecord) {
-    setError(''); setNotice('')
-    try { await invoke('launch_account', { accountId: account.id }); setNotice(`Opened ${account.name}. Browser sign-in status was not checked.`); await reload() }
+    setError(''); setNotice(`Launch requested for ${account.name}. Executable/profile validation and a process-conflict check are in progress.`)
+    try { const feedback = await invoke<LaunchFeedback>('launch_account', { accountId: account.id }); setNotice(feedback.message); await reload() }
     catch (e) { setError(errorMessage(e)) }
   }
 

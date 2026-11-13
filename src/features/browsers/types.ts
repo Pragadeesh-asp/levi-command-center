@@ -28,3 +28,17 @@ export interface BrowserRecord {
   profiles: ProfileCandidate[]
   account_count: number
 }
+
+export interface LaunchFeedback {
+  executablePath: string
+  profileName: string
+  profilePath: string
+  processId: number
+  processCreated: boolean
+  executableValidated: boolean
+  profileValidated: boolean
+  profileConflictCheck: string
+  urlNavigationRequested: boolean
+  launchOutcome: 'unknown'
+  message: string
+}

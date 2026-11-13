@@ -30,7 +30,7 @@ fn main() {
             browser::detect_browsers,
             browser::validate_browser_path,
             browser::discover_profiles,
-            browser::validate_profile,
+            browser::register_browser_profile,
             browser::refresh_profile_availability,
             browser::launch_account,
             browser::test_profile_launch,

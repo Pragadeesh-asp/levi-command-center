@@ -4,6 +4,7 @@ import type Database from '@tauri-apps/plugin-sql'
 import { Activity, AlertCircle, Archive, ArrowDownRight, ArrowUpRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp, Command, FolderKanban, Globe2, LayoutDashboard, ListTodo, MessageSquareText, Plus, Search, Settings, Users, Zap, type LucideIcon } from 'lucide-react'
 import { AccountsPage } from './features/accounts/AccountsPage'
 import { BrowserProfilesPage } from './features/browsers/BrowserProfilesPage'
+import type { LaunchFeedback } from './features/browsers/types'
 import { errorMessage, getDatabase } from './lib/database'
 import './phase2.css'
 import './App.css'
@@ -47,8 +48,8 @@ function Overview({ db, onAccounts }: { db: Database; onAccounts: () => void }) 
     { label: 'Overdue', value: summary?.overdue, detail: 'Open tasks past their deadline', icon: AlertCircle, tone: 'amber' },
   ]
   async function launch(id: string, name: string) {
-    setLaunchError(''); setLaunchNotice('')
-    try { await invoke('launch_account', { accountId: id }); setLaunchNotice(`Opened ${name}. Sign-in status was not checked.`); await reload() }
+    setLaunchError(''); setLaunchNotice(`Launch requested for ${name}. Executable/profile validation and a process-conflict check are in progress.`)
+    try { const feedback = await invoke<LaunchFeedback>('launch_account', { accountId: id }); setLaunchNotice(feedback.message); await reload() }
     catch (e) { setLaunchError(errorMessage(e)) }
   }
   return <>
