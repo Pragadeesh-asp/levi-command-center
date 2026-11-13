@@ -2,34 +2,30 @@
 
 Updated: 2026-11-13
 
-## Phase 1 status: foundation implemented; native verification awaits build tools
+## Phase 1.1 status: native Windows verification passed
 
-### Implemented
+### Phase 1 foundation
 
 - Vite React/TypeScript scaffold with strict TypeScript settings.
-- Initial dashboard shell: sidebar, navigation, metric cards with no fabricated counts, empty-state activity/quick-launch/task/deadline panels, search input, and account action.
+- Initial dashboard shell: sidebar, navigation, database-ready metric placeholders, empty-state activity/quick-launch/task/deadline panels, search, and account action.
 - Tailwind 4 integration and custom dark navy/cyan design system.
 - Tauri 2 Rust host/configuration with SQL and notification plugins, capability, SQLite migration registration and Windows installer targets.
-- Initial relational schema and all five requested docs.
-- Initial Git repository.
+- Relational SQLite schema and requested architecture, database, roadmap, progress, and known-issues documentation.
 
-### Environment
+### Native verification (2026-11-13)
 
-- Node.js `v24.21.0`, npm `11.19.0`, Git `2.56.0.windows.1` present.
-- `rustc`, Cargo, rustup, and Visual Studio C++ build tools were unavailable.
-- WebView2 Runtime `157.0.4341.46` detected by `tauri info`.
-- No existing source repository or app was present.
+- Windows x64 host target: `x86_64-pc-windows-msvc`; stable Rust 1.100.0, Cargo 1.100.0, MSVC VS 2022, and WebView2 detected.
+- `npm run tauri dev`: passed after adding the required Windows ICO application icon. The first compile attempt exposed the missing icon.
+- Native desktop process launched and the dashboard rendered in the Tauri window. Visual check at desktop resolution passed; navigation selection for Accounts and Projects responded. The destination feature pages remain outside Phase 1.
+- SQLite preload created `%APPDATA%/com.local.claude-command-center/command-center.db`. Read-only inspection confirmed all 11 application tables plus `_sqlx_migrations`; migration 1 `initial_relational_schema` is recorded as successful.
+- Frontend `npm run build`: passed; 1,567 modules transformed.
+- Frontend `npm run lint`: passed after excluding generated Tauri build/schema output. Before adding ignores, Oxlint reported a warning in a generated script under `src-tauri/target`.
+- Tauri dev output contained no application runtime errors after the successful launch. The app does not yet configure a persistent logging plugin.
 
-### Verification
+### Environment detail
 
-- `npm run build`: passed (TypeScript project build + Vite production build; 1,567 modules transformed).
-- `npm run lint`: passed (Oxlint; no findings).
-- SQLite migration smoke check using Python's SQLite passed: all 11 tables created, status CHECK rejected invalid values, and foreign keys rejected missing parent references.
-- `npm run tauri -- info`: confirmed WebView2, but reports Rust/Cargo and MSVC/Windows SDK missing.
-- Native Tauri build and desktop UI verification could not run without Rust/Cargo and MSVC.
+Rust binaries were installed under `C:\Users\praga\.cargo\bin`, but that location was missing from Codex's inherited PATH. The build session prepended that directory for the current process only; no global environment variables were changed.
 
 ### Next
 
-1. Install Rust/Cargo and MSVC/Windows SDK prerequisites, then run `npm run tauri dev`.
-2. Verify the migration through the Tauri plugin and inspect the shell at desktop dimensions.
-3. Keep Phase 2 work gated on review of the Phase 1 foundation.
+Phase 1.1 verification is complete. Await approval before starting Phase 2.
