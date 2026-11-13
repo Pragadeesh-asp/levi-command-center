@@ -103,11 +103,12 @@ export function BrowserProfilesPage({ db }: Props) {
   async function rescan(browser: BrowserRecord) {
     setError(''); setBusy(true)
     try {
-      const browserCheck = await invoke<{ canonicalPath: string }>('validate_browser_path', { family: browser.family, executablePath: browser.executable_path }).catch(() => null)
+      const browserCheck = await invoke<{ canonicalPath: string; browserVersion: string | null }>('validate_browser_path', { family: browser.family, executablePath: browser.executable_path }).catch(() => null)
       if (!browserCheck) {
         await db.execute("UPDATE browsers SET availability_status='unavailable',updated_at=datetime('now') WHERE id=?", [browser.id])
         throw new Error(`${browser.name} could not be found at its registered executable path.`)
       }
+      await db.execute("UPDATE browsers SET executable_path=?,browser_version=?,availability_status='available',updated_at=datetime('now') WHERE id=?", [browserCheck.canonicalPath, browserCheck.browserVersion, browser.id])
       const candidates = await invoke<ProfileCandidate[]>('discover_profiles', { browserId: browser.id })
       const refreshed = await invoke<{ id: string; availabilityStatus: string }[]>('refresh_profile_availability', { browserId: browser.id })
       for (const candidate of candidates) await upsertProfile(browser.id, candidate)
@@ -165,7 +166,7 @@ export function BrowserProfilesPage({ db }: Props) {
     {visibleBrowsers.length ? <div className="browser-list">{visibleBrowsers.map(browser => {
       const browserProfiles = profiles.filter(p => p.browser_id === browser.id)
       return <section className="browser-card" key={browser.id}>
-        <div className="browser-card-header"><div className="browser-logo"><Globe2 size={18}/></div><div className="browser-summary"><h2>{browser.name}</h2><p>{familyLabel(browser.family)} · {browser.browser_version ?? 'Version not detected'}</p></div><span className={`availability-tag ${browser.availability_status}`}>{browser.availability_status}</span><button className="button-secondary" disabled={busy} onClick={() => void rescan(browser)}><RefreshCw size={13}/> Rescan</button><button className="button-secondary" onClick={() => addProfile(browser.id, [])}><Plus size={13}/> Add profile</button></div>
+        <div className="browser-card-header"><div className="browser-logo"><Globe2 size={18}/></div><div className="browser-summary"><h2>{browser.name}</h2><p>{familyLabel(browser.family)} · {browser.browser_version ?? 'Unknown version'}</p></div><span className={`availability-tag ${browser.availability_status}`}>{browser.availability_status}</span><button className="button-secondary" disabled={busy} onClick={() => void rescan(browser)}><RefreshCw size={13}/> Rescan</button><button className="button-secondary" onClick={() => addProfile(browser.id, [])}><Plus size={13}/> Add profile</button></div>
         <div className="browser-path"><HardDrive size={13}/><span>{browser.executable_path}</span></div>
         <div className="browser-card-meta"><span><strong>{browserProfiles.length}</strong> registered profiles</span><span><strong>{browser.account_count}</strong> linked accounts</span><span>Added by {browser.detection_method === 'manual' ? 'you' : 'detection'}</span></div>
         {browserProfiles.length > 0 && <div className="profile-table"><div className="profile-table-head"><span>PROFILE</span><span>LOCATION</span><span>ACCOUNTS</span><span>AVAILABILITY</span><span>ACTIONS</span></div>{browserProfiles.map(profile => <div className="profile-row" key={profile.id}><div className="profile-name-cell"><FolderOpen size={14}/><strong>{profile.profileName}</strong></div><span className="profile-path-cell" title={profile.profilePath}>{profile.profilePath}</span><span className="profile-account-count">{profile.account_count}</span><span className={`availability-tag ${profile.availabilityStatus}`}>{profile.availabilityStatus}</span><div className="profile-actions"><button className="card-icon-button" onClick={() => void testProfile(profile)} title="Test profile launch" aria-label={`Test ${profile.profileName}`}><ArrowDownToLine size={14}/></button><button className="card-icon-button archive-action" onClick={() => void removeRegistration(profile)} title="Remove registration" aria-label={`Remove ${profile.profileName} registration`}><Trash2 size={14}/></button></div></div>)}</div>}

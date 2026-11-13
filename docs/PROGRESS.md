@@ -9,17 +9,20 @@ Updated: 2026-11-13
 - Frontend build/lint and SQLite schema smoke checks passed.
 - Git checkpoint: `0fdcfeb Verify native Windows foundation`.
 
-## Phase 2 — Accounts and browser management (implementation in progress)
+## Phase 2 — Accounts and browser management (implementation complete)
 
 - Added additive SQLite migration version 2 for browser installation/profile metadata. The Tauri identifier and database location remain unchanged.
 - Added Rust browser discovery for Chrome, Edge, Brave, Opera, and Firefox; manual registration validation; profile rescanning; safe argument-vector launch for Chromium and Firefox; HTTPS Claude URL validation; launch activity and timestamps.
 - Added SQLite-backed browser profile and account interfaces with manual registration, account editing, profile mapping, search/filter, priority ordering, archival, and quick launch.
 - Browser detection on this Windows host found all five supported browsers and profile metadata. A detected Brave profile was registered in the app; the test-launch action opened an `about:blank` tab. Authentication was not checked.
-- The LEVI desktop window rendered the dashboard correctly; Browser Profiles and Accounts navigation rendered and the account form mapped to the registered Brave profile.
-- The first account save attempt surfaced `database is locked` because the frontend SQL plugin cannot hold a multi-statement transaction across separate calls. Account create/update/archive and their activity writes have since moved into single Rust/SQLx transactions. Rust tests and frontend checks pass after the fix; end-to-end account-save retest remains outstanding because the rebuilt Tauri window was minimized and the desktop control service could not restore it in this run.
-- One browser-generated Chromium log reported locked profile storage during the test launch, consistent with the registered personal profile already being in use. No cookies or browser database files were accessed or modified by the application. Avoid repeat launches against an active personal profile until the active-process behavior is verified more fully.
-- Rust unit tests: 6 passed. Frontend `npm run build` and `npm run lint`: passed cleanly.
-- The existing database shows migrations 1 and 2 applied, and the original Phase 1 tables and records remain present. Browser/profile/account counts before the account-save test were zero; Brave registration was persisted.
+- The Phase 2.1 Windows desktop run rendered the dashboard and navigated to Accounts and Browser Profiles. The existing Brave installation/profile record loaded. The fresh window was visible; the earlier minimized-window report was stale-window tooling state.
+- Account create/edit/archive and their activity records use single Rust/SQLx transactions. A temporary SQLite integration test verifies create, edit with profile remapping, close/reopen persistence, and rollback of both account changes and activity inserts (including archive rollback).
+- Chromium and Firefox launches now reject known profile lock-marker paths without deleting or modifying markers. Windows process-to-profile ownership and safe compatible-session reuse are not implemented, so marker absence is not proof that a profile is unused.
+- Windows browser version resource reading now handles canonicalized `\\?\` paths, and Rescan refreshes the stored executable/version metadata. The rebuilt app displayed Brave `157.1.99.57`; other browsers' version labels were not individually verified.
+- `cargo test`: 8 passed; `cargo fmt --check`, `npm run build`, and `npm run lint` passed. Native `tauri dev` compiled and launched. A full Tauri release bundle was not produced.
+- Verified in the current app UI: account creation with Claude URL and Brave profile; edit/remap to an isolated temporary Brave profile; save feedback; account/profile mapping and both activity rows in SQLite; close/restart persistence; manual profile registration against a temporary existing directory; browser rescan and Brave version display; dashboard and Accounts/Browser Profiles rendering/navigation. No browser was launched during this test run.
+- Not verified end-to-end: Chrome, Edge, Brave, Opera, and Firefox launch/URL-navigation matrix; invalid executable and missing/unavailable profile validation messages; live profile-in-use detection and compatible-session reuse. Profile lock marker unit coverage passed, but Windows process ownership remains a known limitation.
+- Migrations 1 and 2 were inspected. A temporary-database test checks transaction rollback and mappings. Live database preservation was confirmed; the temporary UI account/activity/profile records and isolated temporary folder were removed after restart verification. No database reset was performed.
 
 ## Product direction
 
@@ -28,4 +31,8 @@ Updated: 2026-11-13
 
 ## Next
 
-Finish Phase 2 verification of account create/edit/profile mapping, database persistence after restart, browser/profile manual registration and launch error paths. Do not start Phase 3 or AI implementation before approval.
+Finish the outstanding browser launch/error and manual validation checks before Phase 2.1 approval. Do not start Phase 3 or AI implementation before explicit approval.
+
+## Phase 2.1 — Windows stabilization (verification incomplete)
+
+Live account create/edit/profile-remap, activity persistence, restart persistence, temporary profile registration, UI rendering/navigation, and Brave version refresh were verified. Native build and frontend/Rust checks passed. Browser launch matrix and invalid-path validation remain unverified; Windows process ownership/reuse remains a safety limitation. See `KNOWN_ISSUES.md`.

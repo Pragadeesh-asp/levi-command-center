@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
+use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{sqlite::SqliteConnectOptions, FromRow, SqlitePool};
 use std::{
     collections::HashSet,
@@ -67,6 +69,25 @@ pub async fn save_account(
     }
 
     let pool = database(&app).await?;
+    save_account_transaction(&pool, &account, is_update).await
+}
+
+async fn save_account_transaction(
+    pool: &SqlitePool,
+    account: &AccountInput,
+    is_update: bool,
+) -> Result<(), String> {
+    let name = account.name.trim();
+    let identifier = account
+        .identifier
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+    let conversation_url = account
+        .conversation_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
     let mut tx = pool.begin().await.map_err(db_error)?;
     let profile_available: Option<i64> = sqlx::query_scalar(
         "SELECT 1 FROM browser_profiles bp JOIN browsers b ON b.id=bp.browser_id WHERE bp.id=? AND bp.archived_at IS NULL AND bp.availability_status='available' AND b.availability_status='available'"
@@ -131,6 +152,10 @@ pub async fn save_account(
 #[tauri::command]
 pub async fn archive_account(app: AppHandle, account_id: String) -> Result<(), String> {
     let pool = database(&app).await?;
+    archive_account_transaction(&pool, &account_id).await
+}
+
+async fn archive_account_transaction(pool: &SqlitePool, account_id: &str) -> Result<(), String> {
     let mut tx = pool.begin().await.map_err(db_error)?;
     let result = sqlx::query("UPDATE accounts SET archived_at=datetime('now'),updated_at=datetime('now') WHERE id=? AND archived_at IS NULL")
         .bind(&account_id).execute(&mut *tx).await.map_err(db_error)?;
@@ -220,7 +245,7 @@ pub fn detect_browsers() -> Vec<DetectedBrowser> {
             find_executable(family).map(|(path, method)| DetectedBrowser {
                 family: (*family).to_owned(),
                 name: browser_name(family).to_owned(),
-                browser_version: None,
+                browser_version: read_browser_version(&path),
                 detection_method: method,
                 profiles: discover_profiles_for(family),
                 executable_path: path.to_string_lossy().into_owned(),
@@ -248,9 +273,10 @@ pub fn validate_browser_path(
     let path = path
         .canonicalize()
         .map_err(|_| "The browser executable path could not be resolved.".to_string())?;
+    let browser_version = read_browser_version(&path);
     Ok(ValidatedPath {
         canonical_path: path.to_string_lossy().into_owned(),
-        browser_version: None,
+        browser_version,
     })
 }
 
@@ -409,6 +435,11 @@ fn make_launch_spec(
 ) -> Result<LaunchSpec, String> {
     let executable = validate_browser_path(family.to_owned(), executable.to_owned())?;
     let profile = validate_profile_paths(family, profile_path, user_data_directory, "registered")?;
+    ensure_profile_not_locked(
+        family,
+        &profile.profile_path,
+        profile.user_data_directory.as_deref(),
+    )?;
     let _display_name = profile_name;
     let url = if url == "about:blank" {
         url.to_owned()
@@ -455,6 +486,124 @@ fn validate_claude_url(value: &str) -> Result<String, String> {
         return Err("For safety, account URLs must use https://claude.ai/ and cannot contain embedded credentials.".into());
     }
     Ok(url.to_string())
+}
+
+#[cfg(windows)]
+fn read_browser_version(path: &Path) -> Option<String> {
+    use std::ffi::c_void;
+
+    #[repr(C)]
+    struct FixedFileInfo {
+        signature: u32,
+        structure_version: u32,
+        file_version_ms: u32,
+        file_version_ls: u32,
+        remaining: [u32; 9],
+    }
+
+    #[link(name = "version")]
+    unsafe extern "system" {
+        fn GetFileVersionInfoSizeW(file_name: *const u16, handle: *mut u32) -> u32;
+        fn GetFileVersionInfoW(
+            file_name: *const u16,
+            handle: u32,
+            length: u32,
+            data: *mut c_void,
+        ) -> i32;
+        fn VerQueryValueW(
+            block: *const c_void,
+            sub_block: *const u16,
+            value: *mut *mut c_void,
+            length: *mut u32,
+        ) -> i32;
+    }
+
+    // `canonicalize()` may return Win32's extended `\\?\` prefix. The
+    // version resource APIs do not consistently accept that namespace, so
+    // pass the ordinary DOS path when it is representable.
+    let path_text = path.to_string_lossy();
+    let version_path = path_text.strip_prefix("\\\\?\\").unwrap_or(&path_text);
+    let file_name: Vec<u16> = version_path.encode_utf16().chain(Some(0)).collect();
+    let mut handle = 0;
+    let length = unsafe { GetFileVersionInfoSizeW(file_name.as_ptr(), &mut handle) };
+    if length == 0 {
+        return None;
+    }
+    let mut block = vec![0u8; length as usize];
+    if unsafe {
+        GetFileVersionInfoW(
+            file_name.as_ptr(),
+            handle,
+            length,
+            block.as_mut_ptr().cast(),
+        )
+    } == 0
+    {
+        return None;
+    }
+    let query: Vec<u16> = "\\\0".encode_utf16().collect();
+    let mut value = std::ptr::null_mut();
+    let mut value_length = 0;
+    if unsafe {
+        VerQueryValueW(
+            block.as_ptr().cast(),
+            query.as_ptr(),
+            &mut value,
+            &mut value_length,
+        )
+    } == 0
+        || value_length < std::mem::size_of::<FixedFileInfo>() as u32
+    {
+        return None;
+    }
+    let info = unsafe { &*value.cast::<FixedFileInfo>() };
+    if info.signature != 0xFEEF04BD {
+        return None;
+    }
+    Some(format!(
+        "{}.{}.{}.{}",
+        info.file_version_ms >> 16,
+        info.file_version_ms & 0xFFFF,
+        info.file_version_ls >> 16,
+        info.file_version_ls & 0xFFFF
+    ))
+}
+
+#[cfg(not(windows))]
+fn read_browser_version(_path: &Path) -> Option<String> {
+    None
+}
+
+fn ensure_profile_not_locked(
+    family: &str,
+    profile_path: &str,
+    user_data_directory: Option<&str>,
+) -> Result<(), String> {
+    let lock_paths: Vec<PathBuf> = match family {
+        "chrome" | "edge" | "brave" | "opera" => {
+            let root = user_data_directory
+                .ok_or_else(|| "The Chromium user-data directory is missing.".to_string())?;
+            ["SingletonLock", "SingletonCookie", "SingletonSocket"]
+                .iter()
+                .map(|name| Path::new(root).join(name))
+                .collect()
+        }
+        "firefox" => ["parent.lock", ".parentlock"]
+            .iter()
+            .map(|name| Path::new(profile_path).join(name))
+            .collect(),
+        _ => return Err("This browser family cannot be safely checked for profile locks.".into()),
+    };
+    if let Some(marker) = lock_paths
+        .iter()
+        .find(|path| std::fs::symlink_metadata(path).is_ok())
+    {
+        return Err(format!(
+            "This browser profile appears to be in use (lock marker: {}). LEVI did not launch another process or alter the marker. Close the browser normally, verify the profile is no longer active, then rescan and retry.",
+            marker.display()
+        ));
+    }
+    Ok(())
 }
 
 fn validate_profile_paths(
@@ -929,5 +1078,179 @@ mod tests {
             "manual"
         )
         .is_err());
+    }
+
+    #[test]
+    fn chromium_profile_lock_prevents_another_launch_without_removing_marker() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("User Data");
+        let profile = root.join("Default");
+        fs::create_dir_all(&profile).unwrap();
+        let lock = root.join("SingletonLock");
+        fs::write(&lock, "simulated active-profile marker").unwrap();
+        let exe = temp.path().join("chrome.exe");
+        fs::write(&exe, b"test executable").unwrap();
+
+        let result = make_launch_spec(
+            "chrome",
+            exe.to_str().unwrap(),
+            profile.to_str().unwrap(),
+            Some(root.to_str().unwrap()),
+            "Default",
+            "https://claude.ai/",
+        );
+
+        let error = result.unwrap_err();
+        assert!(error.contains("appears to be in use"));
+        assert!(
+            lock.exists(),
+            "LEVI must not remove the browser lock marker"
+        );
+    }
+
+    fn account_input(name: &str, profile_id: &str) -> AccountInput {
+        AccountInput {
+            id: "test-account".into(),
+            name: name.into(),
+            identifier: Some("test-label".into()),
+            browser_profile_id: profile_id.into(),
+            conversation_url: Some("https://claude.ai/new".into()),
+            status: "idle".into(),
+            priority: 2,
+            notes: "temporary test data".into(),
+            project_id: Some("test-project".into()),
+        }
+    }
+
+    async fn account_test_pool(path: &Path) -> SqlitePool {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(path)
+                    .create_if_missing(true)
+                    .foreign_keys(true),
+            )
+            .await
+            .unwrap();
+        for ddl in [
+            "CREATE TABLE browsers(id TEXT PRIMARY KEY, availability_status TEXT NOT NULL)",
+            "CREATE TABLE browser_profiles(id TEXT PRIMARY KEY, browser_id TEXT NOT NULL REFERENCES browsers(id), availability_status TEXT NOT NULL, archived_at TEXT)",
+            "CREATE TABLE projects(id TEXT PRIMARY KEY, status TEXT NOT NULL, archived_at TEXT)",
+            "CREATE TABLE accounts(id TEXT PRIMARY KEY, name TEXT NOT NULL, identifier TEXT, browser_profile_id TEXT NOT NULL REFERENCES browser_profiles(id), conversation_url TEXT, status TEXT NOT NULL, priority INTEGER NOT NULL, notes TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT '', archived_at TEXT)",
+            "CREATE TABLE project_accounts(project_id TEXT NOT NULL REFERENCES projects(id), account_id TEXT NOT NULL REFERENCES accounts(id), PRIMARY KEY(project_id,account_id))",
+            "CREATE TABLE activity_logs(id TEXT PRIMARY KEY, activity_type TEXT NOT NULL, description TEXT NOT NULL, source TEXT NOT NULL, account_id TEXT REFERENCES accounts(id))",
+        ] {
+            sqlx::query(ddl).execute(&pool).await.unwrap();
+        }
+        sqlx::query(
+            "INSERT INTO browsers(id,availability_status) VALUES('test-browser','available')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO browser_profiles(id,browser_id,availability_status) VALUES('profile-one','test-browser','available'),('profile-two','test-browser','available')")
+            .execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO projects(id,status) VALUES('test-project','active')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        pool
+    }
+
+    #[tokio::test]
+    async fn account_create_edit_persist_and_activity_are_atomic() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("account-transaction-test.db");
+        let pool = account_test_pool(&path).await;
+
+        save_account_transaction(
+            &pool,
+            &account_input("Temporary account", "profile-one"),
+            false,
+        )
+        .await
+        .unwrap();
+        save_account_transaction(
+            &pool,
+            &account_input("Temporary account edited", "profile-two"),
+            true,
+        )
+        .await
+        .unwrap();
+
+        let saved: (String, String) =
+            sqlx::query_as("SELECT name,browser_profile_id FROM accounts WHERE id='test-account'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            saved,
+            ("Temporary account edited".into(), "profile-two".into())
+        );
+        let activities: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM activity_logs WHERE account_id='test-account'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(activities, 2);
+
+        sqlx::query("CREATE TRIGGER reject_activity BEFORE INSERT ON activity_logs BEGIN SELECT RAISE(ABORT,'forced activity failure'); END")
+            .execute(&pool).await.unwrap();
+        let failed_update = account_input("Should roll back", "profile-one");
+        assert!(save_account_transaction(&pool, &failed_update, true)
+            .await
+            .is_err());
+        let after_failure: (String, String) =
+            sqlx::query_as("SELECT name,browser_profile_id FROM accounts WHERE id='test-account'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(after_failure, saved);
+        let activities_after_failure: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM activity_logs WHERE account_id='test-account'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(activities_after_failure, 2);
+
+        assert!(archive_account_transaction(&pool, "test-account")
+            .await
+            .is_err());
+        let archived_at: Option<String> =
+            sqlx::query_scalar("SELECT archived_at FROM accounts WHERE id='test-account'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert!(archived_at.is_none());
+        pool.close().await;
+
+        let reopened = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(&path)
+                    .foreign_keys(true),
+            )
+            .await
+            .unwrap();
+        let persisted: (String, String) =
+            sqlx::query_as("SELECT name,browser_profile_id FROM accounts WHERE id='test-account'")
+                .fetch_one(&reopened)
+                .await
+                .unwrap();
+        assert_eq!(persisted, saved);
+        let mapping_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM project_accounts WHERE account_id='test-account' AND project_id='test-project'")
+            .fetch_one(&reopened).await.unwrap();
+        assert_eq!(mapping_count, 1);
+        let final_activity_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM activity_logs WHERE account_id='test-account'",
+        )
+        .fetch_one(&reopened)
+        .await
+        .unwrap();
+        assert_eq!(final_activity_count, 2);
     }
 }
