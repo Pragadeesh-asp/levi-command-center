@@ -1,6 +1,6 @@
 # Database design
 
-SQLite is the durable local source of truth. Initial schema is `src-tauri/migrations/001_initial.sql`; it is registered as migration version 1 in the Rust host and preloaded on app startup. Migration changes must be additive/versioned and tested against both a fresh database and an existing user database. Do not edit an already released migration in place.
+SQLite is the durable local source of truth at the existing `command-center.db` location under the unchanged Tauri identifier `com.local.claude-command-center`. Initial schema is `src-tauri/migrations/001_initial.sql` (version 1); Phase 2 adds `src-tauri/migrations/002_browser_registry.sql` (version 2). Migration changes must be additive/versioned and tested against a fresh database and an existing user database. Do not edit an already released migration in place or delete existing records.
 
 ## Relationships
 
@@ -17,9 +17,9 @@ settings: key/value application settings
 
 ## Entity responsibilities
 
-- `browsers`: named installation and executable path.
-- `browser_profiles`: named existing browser profile, unique by `(browser_id, profile_path)`.
-- `accounts`: Claude identity, selected profile, conversation URL, operational status/priority, notes and access timestamps.
+- `browsers`: named installation, executable path/version, detection method, availability, and access timestamp.
+- `browser_profiles`: registered existing browser profile, profile/user-data directories, detection method, availability, access timestamp and archival timestamp; unique by `(browser_id, profile_path)`.
+- `accounts`: manually registered Claude identity, selected profile, conversation URL, project, operational status/priority, notes and access timestamps.
 - `projects`, `project_accounts`: project metadata and multi-account assignments.
 - `tasks`, `task_history`: task state and immutable field-change trail for status/owner updates.
 - `reminders`: persisted due time, recurrence rule, status, snooze and optional associations.
@@ -31,7 +31,7 @@ settings: key/value application settings
 
 Foreign keys are declared on every relationship. Status and priority are constrained with CHECK clauses. Useful status/date and relationship indexes are included. Browser/profile deletion is restricted until references are resolved. Account, project and task links in historical records use `SET NULL` or cascade only where their dependent row has no value without its parent. Archival timestamps preserve normal operating history.
 
-The migration uses `TEXT` timestamps in UTC ISO-8601-compatible form. App services should use prepared parameters for all values. SQLite date comparisons must normalize to UTC. Task assignment and status edits must be wrapped with their `task_history` inserts in one transaction.
+Migrations use `TEXT` timestamps in UTC ISO-8601-compatible form. App services use prepared parameters for all values. SQLite date comparisons must normalize to UTC. Browser launch metadata and account last-accessed/activity writes are committed together. Profile registration removal archives the row and leaves its directory and browser data untouched. Browser profile metadata is limited to display names and paths; authentication data is neither queried nor copied.
 
 ## Backup and recovery (planned)
 

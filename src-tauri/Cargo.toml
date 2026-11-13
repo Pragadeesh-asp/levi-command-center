@@ -1,8 +1,8 @@
 [package]
-name = "claude-command-center"
+name = "levi-command-center"
 version = "0.1.0"
 description = "Local-first AI account operations"
-authors = ["Claude Command Center"]
+authors = ["LEVI Command Center"]
 edition = "2021"
 
 [build-dependencies]
@@ -14,4 +14,13 @@ tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+winreg = "0.56"
+tauri-plugin-dialog = "2"
+
+[dev-dependencies]
+tempfile = "3"
 

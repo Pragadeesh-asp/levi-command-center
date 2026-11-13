@@ -1,12 +1,12 @@
-# Claude Command Center
+# LEVI COMMAND CENTER
 
-**One Control Room. Every AI Account. Total Clarity.**
+**Your Personal AI Operations Headquarters.**
 
-A local-first Windows desktop workspace for coordinating Claude accounts, browser profiles, projects, tasks, reminders, and deliverables.
+A local-first Windows desktop workspace for coordinating Claude accounts and browser profiles, with projects, tasks, reminders, and deliverables planned for later phases.
 
 ## Current phase
 
-Phase 1 establishes the Tauri/React foundation, database schema, and dashboard shell. Operational modules are not implemented yet. See [docs/PROGRESS.md](docs/PROGRESS.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
+Phase 2 implements the account registry, browser/profile registry, and safe one-click launch workflow. The application retains the original Tauri identifier and SQLite location so existing data remains available. See [docs/PROGRESS.md](docs/PROGRESS.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Development
 
