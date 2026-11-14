@@ -4,15 +4,15 @@
 
 LEVI COMMAND CENTER is the central operations application in **LEVI ECOSYSTEM**, whose tagline is “Your AI Workforce. Your Projects. Your Intelligence.” The ecosystem also plans LEVI BROWSER and LEVI — COMMAND INTELLIGENCE; neither is implemented. The current Command Center is a local-first Windows desktop application built with Tauri 2, React 19, strict TypeScript, Vite, and Tailwind CSS 4. Rust owns desktop integration. SQLite remains the source of truth for user-created operational data. The existing Tauri identifier `com.local.claude-command-center` and database file `command-center.db` are intentionally preserved for compatibility.
 
-The product direction is organized around Operations (accounts, browsers/profiles, later projects/tasks/deliverables), Intelligence (future LEVI AI), and Control (future reminders, activity, analytics, and automation). Phase 2 currently implements browser and account management only; later modules remain planned. See `ROADMAP.md` for the phase sequence and explicitly planned data concepts.
+The product direction is organized around Operations (accounts, browsers/profiles, projects and tasks), Intelligence (future LEVI AI), and Control (workforce status, reminders, activity and analytics). Project/task CRUD, transactional worker eligibility, dependency-aware queue assignment, project-scoped file claims, a local-record Workforce Center, a manual usage-limit/checkpoint workflow, and the persistent reminder scheduler are implemented. Live OS toast delivery still needs Windows verification; live AI remains unimplemented. See `ROADMAP.md` for current boundaries.
 
 ## Runtime boundaries
 
-- **Frontend (`src/`)**: presentation, navigation, form validation, and database-backed account/profile views. It does not read browser profile files or launch processes directly.
-- **Tauri host (`src-tauri/`)**: narrow OS-facing commands detect browser installs/profiles, validate registered paths, and launch a requested account using safe argument vectors, never shell strings.
+- **Frontend (`src/`)**: presentation, navigation, form validation, database-backed project/task lists and queue controls, and account/profile views. It does not read browser profile files or launch processes directly.
+- **Tauri host (`src-tauri/`)**: narrow commands own account/browser operations and transactional project/task mutations, queue assignment, dependency validation and file claims. Assignment changes, claim acquisition/release, task history and activity records are committed atomically. Browser launches use safe argument vectors, never shell strings.
 - **Persistence (`src-tauri/migrations/`)**: versioned SQL migrations. The database is `sqlite:command-center.db` in Tauri's app data directory. The SQL plugin applies registered migrations on connection load.
-- **Notifications**: persistent reminder rows are authoritative. On startup and while running, a Rust scheduler checks due rows and dispatches OS notifications; notification scheduling is recoverable from SQLite after restarts.
-- **Activity**: explicit user actions and known system events are logged with a source field. Browser presence is not evidence that an AI account is working.
+- **Notifications**: the Rust scheduler and Reminders UI use the Tauri notification plugin. Delivery is user-opt-in and persisted; Windows toast delivery and permission-denial behavior are not yet verified. Scheduling runs only while the app is open, with overdue catch-up after restart.
+- **Activity**: account and project/task mutations log explicit events; task field changes are transactionally coupled to `task_history`. Browser presence is not evidence that an AI account is working.
 
 ## Folder structure
 
@@ -81,6 +81,19 @@ The Tauri development binary and visible window were verified on Windows. The da
 
 Usage records will carry source class (API-reported, platform-reported, estimated or manual) plus provider/model/platform/account/project/date and request ID when actually available. Do not invent web-platform tokens, quotas or reset times. Work-session records will attribute project, account and optional task, timestamps, active duration and recording method. Browser-open time is not active-work time. Future project and telemetry entities are concepts in `ROADMAP.md`; migrations are not part of the current stabilization milestone.
 
+## Workforce assignment and manual usage-limit reporting
+
+The project editor manages account membership in `project_accounts`; Rust validates each selected account and commits membership changes with activity records transactionally. Assignment is authoritative in Rust: manual and automatic queue assignment use SQLite `BEGIN IMMEDIATE` transactions to validate active project, account status, browser/profile availability, project membership, dependencies, file claims and competing active tasks, then commit task history and activity together. Browser process presence does not change account availability.
+
+`mark_usage_limited` is a user-reported workflow, not page monitoring. It stores the exact entered message, optional explicitly supplied reset time, checkpoint fields, waiting task/account state, task history, a persistent check-in reminder, and activity atomically. If reset time is blank, it is recorded as unknown and the reminder is scheduled as a one-day manual check-in; that time is not represented as a provider reset. `resume_usage_limited` requires both user-confirmed availability and explicit user authorization, checks browser/profile availability, resolves the pending event/reminder and returns the original task to Ready under the same account in one transaction. No credentials, cookies or page contents are inspected.
+
+The Workforce Center, Task Queue and Reminders screen derive data from SQLite. Optional queue automation polls every ten seconds while the app is open and relies on the same Rust transaction as manual assignment. The reminder scheduler starts after the frontend opens the migrated database, polls every 30 seconds while the app is open, transactionally claims due records and records success/retry state. OS delivery is user opt-in; failed sends retry after five minutes and stale claims recover after ten minutes. Exact-once delivery cannot be guaranteed across a crash between the OS toast and SQLite acknowledgement; a stable notification ID reduces repeat toasts where the platform honors it. Due reminders are checked on restart; there is no closed-app Windows background service. A status such as Working requires the saved account status and an in-progress task; launching a browser alone is not evidence of work.
+
 ## Build prerequisites
 
 Frontend: Node.js/npm. Native Windows build: Rust stable toolchain and Cargo, Microsoft C++ Build Tools (MSVC), and WebView2 Runtime. Phase 1.1 native Windows verification passed; Phase 2 native verification is tracked in `PROGRESS.md`.
+## Task queue and assignment
+
+Task Queue assignment is validated and committed by the Rust workforce service. Manual queue assignment, automatic next-eligible assignment and task-form assignment share `save_task_transaction`, which uses SQLite `BEGIN IMMEDIATE`, checks project/account/browser/profile/dependency eligibility, claims declared file paths, and records task history/activity atomically. Active file claims are project-scoped, Windows case-folded, separator-normalized and reject path equality plus parent/child overlaps. No filesystem paths are opened or edited by this feature; claims are coordination metadata only. Automatic scheduling is user-controlled and polled by the running Command Center at 10-second intervals. The assigned state is not evidence of external Claude work starting.
+
+Task dependencies are stored as directed edges and checked for self-reference, cycles and same-project membership before save. Incomplete or archived prerequisites block assignment; the queue displays their status and dependency chain. Waiting-for-reset tasks retain their worker and claims until the user-authorized same-account resume flow is used.

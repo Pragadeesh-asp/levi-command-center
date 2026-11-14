@@ -2,6 +2,14 @@
 
 Updated: 2026-11-14
 
+## Workforce Control Centre — Phase 1: Projects and Tasks (implemented; partial)
+
+- Added database-backed project and task create/edit/archive screens and activated the Projects/Tasks navigation.
+- Rust commands validate records and commit project/task changes with activity rows; task field changes also write `task_history` in the same transaction. Task assignment is manual and requires an active project plus an account mapped to that project.
+- Reused migrations 1 and 2; no migration or production database record was changed. Temporary-database tests cover project persistence, task history/activity atomicity and rollback, project membership validation, and invalid dates.
+- `npm run build`, `npm run lint`, Rust formatting, and `cargo test` passed (21 Rust tests). Native Tauri process launched with a visible titled window. The desktop automation exposed an empty WebView accessibility region, so Projects/Tasks visual navigation was not verified. Vite also found port 5173 occupied and selected 5174 while Tauri's configured `devUrl` remains 5173; inspect the existing dev process before relying on a future native UI run. No records were created in the existing database.
+- Still missing: worker availability enforcement, safe queue scheduling, dependencies/file claims, checkpoints/handoffs, persistent reminder scheduling, workforce dashboard, AI integration, and automatic Claude limit detection. No completion or limit detection is claimed.
+
 ## Phase 1.1 — Native Windows foundation (complete)
 
 - Windows x64 host `x86_64-pc-windows-msvc`; Rust/Cargo 1.100.0, stable MSVC toolchain, MSVC and WebView2 available.
@@ -149,3 +157,31 @@ The final manual checks close the previously identified UI, invalid-path and win
 The final regression rerun passed: `npm run build`, `npm run lint`, `cargo test` (17 passed, 0 failed), `cargo fmt --check`, and `git diff --check`. No database or browser profile data was modified, no temporary profile was cleaned up, and no commit was created.
 
 **Phase 2 is ready for approval review, not approved automatically. Phase 3 has not started.** Preserve the accumulated changes and wait for explicit approval before committing or beginning later-phase implementation.
+
+## 2026-11-14 — Workforce implementation update
+
+- Preserved all prior uncommitted Phase 1 Projects/Tasks, Phase 2 browser/account, and worker-availability work. `HEAD` remains `0c6b8e08341734e2e67b195d594b80101421b0a2`; no commit was created.
+- Vite development serving is fixed at `127.0.0.1:5173` with `strictPort: true`, matching Tauri `devUrl`. No unrelated process was terminated. Port 5173 was free before the current Tauri launch; prior auto-switching is prevented by strict mode.
+- Added migration 3 for structured task checkpoints and usage-limit events. It was applied on native app startup without resetting the existing SQLite database. Read-only `integrity_check` returned `ok` and `foreign_key_check` returned no rows. Existing verification project/account rows remain; the active verification project and account were not removed.
+- Added the `AI Workforce` screen with actual account/profile/task/reminder/activity queries. Native Tauri screenshot and accessibility tree verified the dashboard and Workforce Center render, show the existing registered Brave test worker, and load real summary records. No account or browser was launched as part of this verification.
+- Added an explicit manual usage-limit action. It records user-entered message/checkpoint/reset information, preserves the task’s account assignment while setting task/account to waiting, creates a persisted reminder, and writes history/activity in one `BEGIN IMMEDIATE` transaction. Missing reset time is stored as unknown; the associated one-day reminder is only a manual check-in. Same-account resume requires availability verification, user authorization and browser/profile validation. No fabricated limit report was submitted to the production database.
+- Rust tests: 26 passed, including usage-limit success, rollback and confirmed-resume behavior, availability checks, project mapping, active assignment concurrency and Phase 2 browser/profile integrity. The first new rollback-test assertion was corrected to distinguish the existing creation history from the attempted waiting transition; the rerun passed.
+- `npm run build`, `npm run lint`, `cargo fmt --check`, `git diff --check`: passed. The Tauri development build and native application launched and rendered. UI navigation Overview → AI Workforce and real SQLite-backed status were visually verified. Closing via UI was not confirmed; the dev session was stopped by this task.
+- Still incomplete: user-facing checkpoint browser and review/revision/Copilot handoff workflow; live AI connectivity; automatic Claude usage-limit detection; native verification of the usage-limit submit workflow. No authentication success or external-agent execution is claimed.
+
+## LEVI AUTOPILOT CORE — queue and assignment vertical slice (2026-11-14)
+
+Implemented in the current working tree. Additive migrations 004 and 005 introduce task dependency edges, project-scoped file declarations, claim lifecycle history and explicit per-file release history. Rust assignment validation is authoritative and runs in `BEGIN IMMEDIATE` transactions for manual and automatic queue assignment. It checks active project, account/project membership, worker and browser/profile availability, dependency completion and overlapping project file claims. Project-account membership can now be managed from the project editor and is saved with activity records atomically. Same-account waiting tasks retain their claims; completion, archiving and explicit release free them. Assignment result UI appears only after the backend returns success, and labels assignment separately from work having started.
+
+The Task Queue now has Ready/active/blocked/waiting/review filters, priority/project/worker/estimate, dependency blockers and chains, file conflicts/declarations, assignment history, manual assignment/release and a persisted opt-in automatic assignment setting. While LEVI Command Center is open, the application checks the enabled queue every 10 seconds; the Rust transaction remains authoritative. The Workforce Center now shows recent committed assignments and active file-claim conflicts. Actual Claude work execution and automatic Claude usage-limit detection remain unimplemented.
+
+
+Verification update 2026-11-14: `npm run build`, `npm run lint`, 42 Rust tests, `cargo fmt --check`, and `git diff --check` passed in the latest run. A native Tauri session visually showed the dashboard and Task Queue; the project editor displayed and saved a worker membership in a clearly named verification project. The queue displayed the correct empty state with zero task records. Assignment, dependency blocker, file-conflict and release interactions were not attempted because there were no task records and testing would require inserting records into the production database. These paths are covered by Rust tests, but native end-to-end UI behavior remains unverified. Read-only checks after UI-created verification records returned `integrity_check=ok` and no foreign-key violations. No task rows were added. Earlier dev runs produced transient watcher `EBUSY` warnings while Rust was compiling its executable/PDB; a clean relaunch rendered the app. No completion or external Claude work is claimed.
+
+## Phase 1 — Persistent reminder engine (implemented; live notification delivery unverified)
+
+- Migration 006 adds delivery timestamp, delivery claim, retry/backoff, attempt count and last-error fields to the existing `reminders` table; it applied on the actual Tauri launch without resetting the database. Read-only `integrity_check` returned `ok`; `foreign_key_check` returned no rows; migration records 1–6 are present.
+- The native Reminders screen rendered with zero production reminders. Users can opt in to desktop notifications after the OS permission request, create linked reminders, snooze for one hour, complete or cancel reminders. Create/state changes and activity records use Rust transactions. Existing manual usage-limit reporting continues to create reminders.
+- A Rust scheduler starts after the frontend database connection/migrations are ready, polls due reminders every 30 seconds, claims rows transactionally, uses stable notification identifiers, records successful delivery, and retries failures after five minutes. Old claims can be recovered after ten minutes. Due reminders remain persisted while LEVI is closed and are checked after the next launch.
+- Reminder tests cover single claiming, stale-claim recovery, delivery retry/backoff, snooze/reset, completion, invalid links and transaction rollback. The full Rust suite passed 42/42; `npm run build`, `npm run lint`, `cargo fmt --check` and `git diff --check` passed. The final queue interactions in the native UI and real Windows toast delivery remain unverified.
+- No notification permission was requested and no test toast/reminder was created. Therefore actual Windows toast visibility, permission denial messaging and end-to-end delivery remain unverified. Recurring reminders and delivery while LEVI is closed are not implemented.

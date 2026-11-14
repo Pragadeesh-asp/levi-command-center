@@ -1034,7 +1034,7 @@ fn validate_profile_paths(
     })
 }
 
-async fn database(app: &AppHandle) -> Result<SqlitePool, String> {
+pub(crate) async fn database(app: &AppHandle) -> Result<SqlitePool, String> {
     let path = app
         .path()
         .app_data_dir()

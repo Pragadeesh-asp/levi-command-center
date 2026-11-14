@@ -20,9 +20,9 @@ Tauri 2, React, strict TypeScript, Vite, Windows desktop shell and versioned SQL
 
 Native MSVC build, visible desktop window, frontend checks and SQLite smoke test.
 
-### Phase 2 — Account and browser management (implemented; ready for approval review)
+### Phase 2 — Account and browser management (complete)
 
-Account registry, browser/profile metadata, manual registration, path validation and account-to-profile mapping. The user reports sequential isolated-profile launches and `example.com` navigation passed for all five supported browsers. Database/filesystem inspection corroborates registered paths and generated test profiles; no launch PID/screenshots/persistent launch log were supplied for independent evidence. See `BROWSER_VERIFICATION.md` for evidence scope, SQLite checks, process contention limits, temporary-directory inventory, and the Opera/Firefox registration anomaly. Phase 2 awaits user review and is not approved complete.
+Account registry, browser/profile metadata, manual registration, path validation and account-to-profile mapping are complete and committed. The user reports sequential isolated-profile launches and `example.com` navigation passed for all five supported browsers. Database/filesystem inspection corroborates registered paths and generated test profiles; no launch PID/screenshots/persistent launch log were supplied for independent evidence. See `BROWSER_VERIFICATION.md` for evidence scope, SQLite checks, process contention limits, temporary-directory inventory, and the archived Opera/Firefox registration anomaly.
 
 ### Phase 2.1 — Account and database stabilization (verified)
 
@@ -40,21 +40,21 @@ Harmless test URLs, launch-state diagnostics and manual-close gating are impleme
 
 Rust performs profile validation and registration in a SQLite `BEGIN IMMEDIATE` transaction, rejecting an active canonical directory registered under another browser. Same-browser upsert and archived-record behavior are tested. Windows path normalization is unit-tested. The user confirmed the conflict message appeared in the actual desktop UI and that no profile record changed. Phase 2 is ready for approval review, not automatically approved; see remaining contention limitations in `KNOWN_ISSUES.md`.
 
-### Phase 3 — Project management (future; not started)
+### Workforce Control Centre — foundation implemented; final native UI interaction partial
 
-Projects, many-to-many account assignments, notes, decisions, milestones and historical account reassignment.
+Projects/tasks, project-account membership, transactional account availability enforcement, task history/activity, Task Queue and Workforce Center use real SQLite data. Migrations 3–5 add checkpoints/usage-limit events, dependencies/file claims, and file-release history. Rust assignment paths are covered by the current 42-test suite, including concurrency, dependencies, path overlaps, worker eligibility and rollback. Native dashboard, Reminders and queue empty-state rendering passed. Assignment/blocker/release interactions remain unverified in the native UI because no production task records were created for testing.
 
-### Phase 4 — Task and workforce management (future; not started)
+Automatic assignment is opt-in, priority/dependency/conflict aware and polled every 10 seconds while the Command Center is running. It never claims that a browser launch means Claude work started, and waiting tasks remain with the original account. External work execution and automatic Claude limit detection do not exist.
 
-Backlog/ready/in-progress/waiting/review/blocked/completed states, account assignment, deadlines, priorities, deliverables, blockers and immutable task history. Provide useful list and Kanban views.
+### Phase 1 — Reminder engine (implemented; OS delivery verification pending)
 
-### Phase 5 — Reminder and notification engine (future; not started)
+The Reminders screen supports linked one-time, deadline and check-in records, snooze, complete and cancel. A user opt-in enables the Tauri desktop notification plugin. The Rust scheduler polls every 30 seconds while the app is running; due records are claimed transactionally, delivery attempts/errors are persisted, failures retry after five minutes, and stale claims recover after ten minutes. Existing usage-limit reporting creates a persistent reminder.
 
-Persistent, restart-safe reminders connected to projects, tasks, accounts and deadlines; recurrence, snooze and user-confirmed account opening.
+Migration 006 adds reminder delivery state to the existing reminders table. The migration applied on native Tauri launch and SQLite integrity/foreign keys passed. Unit tests cover claim/retry/snooze/completion and rollback. Native reminder screen rendering passed, but OS permission and a real Windows notification delivery were intentionally not exercised. While LEVI is closed, due reminders remain pending and are checked on next start; recurring reminders are deferred.
 
-### Phase 6 — Activity history and Output Vault (future; not started)
+### Phase 6 — Activity history and Output Vault (partial)
 
-Chronological, provenance-labeled activity and references to existing deliverables. Do not infer that browser presence means active work or move files implicitly.
+Transactional activity records are shown as a recent-event list in Workforce Center. Dedicated Activity filtering and Output Vault workflows remain future work. Do not infer that browser presence means active work or move files implicitly.
 
 ### Phase 7 — LEVI AI provider integration (future; not started)
 
@@ -90,7 +90,7 @@ Accessibility, performance, backup/restore, security review, compatibility, inst
 
 ## Data model direction
 
-Current schema migrations 1 and 2 remain authoritative. Potential future entities include `projects`, `project_accounts`, `tasks`, `task_history`, `reminders`, `activity_logs`, `deliverables`, `project_notes`, `project_decisions`, `milestones`, `work_sessions`, `usage_records`, `usage_limit_events`, `ai_providers`, `ai_models`, `ai_conversations`, `ai_messages`, `ai_action_logs` and `automation_rules`. These are design concepts only; do not create all of them now. Inspect the live schema before additive, versioned migrations and preserve existing records.
+Migrations 1–6 provide projects, project-account links, tasks, task history, reminders, activity, deliverables, checkpoints, user-reported usage-limit events, dependencies, file claims/releases, and reminder delivery state. Remaining candidate entities include task handoff records/events, work sessions, usage records, AI providers/models/conversations/messages, AI action logs and automation rules. These are future concepts, not authorization to create them all. Inspect the live schema before additive migrations and preserve existing records.
 
 Project-level usage and time tracking must retain account/project attribution and provenance. A work session should record project, account, optional task, start/end, active duration and recording method; an open browser is not evidence of active work.
 
