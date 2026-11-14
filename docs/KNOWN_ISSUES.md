@@ -75,3 +75,21 @@ Phase 2 is implemented and ready for approval review, not approved automatically
 - Current reminder gaps: actual Windows notification delivery and denial handling have not been verified; the polling scheduler does not run while the app is closed; recurring reminders are not supported.
 - Reminder engine update: migration 006, scheduler, persistent claim/retry fields and reminder UI are implemented. Current Windows toast delivery and OS permission prompts are unverified; the feature is opt-in and no notification test was triggered. The scheduler runs only while the app is open, then performs catch-up after restart. Recurrence is not supported.
 - Current native verification: window launch and dashboard/queue/reminder rendering are confirmed. Task queue transactions are backend-tested, while the queue's manual assignment, blocker inspection, file conflict and release flows remain unverified in the actual UI. No task records were created to avoid changing production data solely for testing.
+## Checkpoint and Handoff Center limitations (2026-11-14)
+
+- Checkpoint/handoff persistence and workflow transitions are covered by temporary-database Rust tests; native UI rendered, but no production task rows existed, so completion/review/revision/verification forms were not submitted in the actual app.
+- “Restore task context” copies the saved context to the clipboard; it does not reopen an external AI chat or browser.
+- External review, revision and implementation are manual. A saved approval, start marker or user-entered test result is not independent evidence that ChatGPT, Claude, Copilot or a test runner performed the action.
+- Passing verification is recorded from the user's supplied steps/results/evidence; LEVI does not independently execute the verification commands.
+- Native desktop screenshots confirmed the empty-state Checkpoint and Handoff pages render. Multi-record compare, history search, resume, and populated workflow screens remain unverified in native UI.
+- Migration 007 is additive. It has been applied to the existing local DB; read-only integrity and FK checks passed. There is no backup/restore UI.
+
+## MVP closeout verification (2026-11-14)
+
+- Native verification passed for Dashboard, Projects, Tasks/Queue, Workforce Center, Reminders, Checkpoint Center, Handoff Center, AI Command, Accounts and Browser Profiles. Actual task/handoff submission screens could not be populated without creating production task rows; the underlying transitions are covered by temporary SQLite Rust tests.
+- Windows reminder delivery passed in Notification Center for an immediate due reminder and a reminder due while the app was closed. Snooze, completion and restart catch-up were observed. Do Not Disturb was enabled, so banner behavior was suppressed by Windows; permission denial was not tested. Cross-crash exact-once delivery is not guaranteed. Test reminder records were intentionally retained.
+- AI local summaries and conversation persistence passed in the native app. A live AI provider connection remains untested because no provider credential is configured. The UI must not be interpreted as connected until a real successful connection test is performed.
+- Windows Credential Manager storage is implemented with `keyring`, but no API key was supplied or saved during verification. Provider integrations should receive a real configured key only through the app's secure credential flow.
+- Read-only production SQLite checks passed (`integrity_check=ok`, no foreign-key violations); migrations 1–8 are applied. The database contains 2 reminder test records and 1 AI conversation/message from this authorized verification. They were preserved.
+- No backup/restore feature or tested recovery procedure exists. Establishing and verifying a SQLite-consistent backup/restore flow is required before making recovery claims or treating this as release-ready for valuable records.
+- Regression: frontend build, lint, 55 Rust tests, format check and diff check passed. No installer packaging/signing or release build was verified. Historical entries above describe earlier milestone states; this section is the latest closeout status.

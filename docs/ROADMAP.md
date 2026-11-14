@@ -109,3 +109,14 @@ Never extract passwords or cookies, modify browser databases/configuration, dele
 ## Phase boundaries
 
 Only the current authorized milestone may be implemented. Future sections are product direction, not authorization to begin their code or migrations. Phase 3 and all later work require explicit approval after final Phase 2 review.
+## Workforce checkpoints and handoffs — implemented (2026-11-14)
+
+The Checkpoint Center and Handoff Center provide persistent task context, review/revision/implementation handoff packages, and verification records. These are user-driven records: no external AI is contacted and no browser page is read. Task completion requires a recorded passing verification. Automated Claude usage-limit detection, external AI execution, and reminder toast delivery while the app is closed remain future work. No LEVI Browser work was started.
+
+## MVP stabilization closeout (2026-11-14)
+
+AI Command Intelligence and migration 008 are implemented. Deterministic local summaries, handoff prompts and persisted conversations were verified in the native app. OpenAI-compatible and Anthropic provider configuration plus Windows Credential Manager API-key storage are implemented, but live connection remains unverified because no key is configured. No external AI execution is claimed.
+
+Native Windows notifications were verified for an immediately due reminder and restart catch-up after the app was closed. Snooze and completion persisted; test records were retained. Windows Do Not Disturb suppressed banners, although notifications appeared in Notification Center. Permission denial was not induced, and exact-once delivery across a crash is not guaranteed.
+
+Migrations 1–8 are applied to the existing database. Read-only integrity and foreign-key checks passed. Final app checks passed (`npm run build`, `npm run lint`, 55 Rust tests, `cargo fmt --check`, `git diff --check`). Backup/restore and release packaging/signing remain unimplemented and unverified. This is a tested development MVP, not a packaged production release.

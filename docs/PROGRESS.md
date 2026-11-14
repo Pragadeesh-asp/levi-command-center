@@ -148,6 +148,12 @@ The closeout inventory found five populated Phase 2.3 browser test roots and one
 
 ## Next
 
+## Checkpoint and Handoff Center (2026-11-14)
+
+Implemented an additive migration 007 and SQLite-backed Checkpoint Center and Handoff Center. Checkpoints snapshot task/project/worker/profile context and capture completed work, remaining work, files, blockers and next action. The UI supports search, history, A/B comparison, context copying, and same-account resume only after explicit availability verification and authorization. Task completion reports atomically create a checkpoint, deliverable, review package, task history and activity; review feedback creates a manual Claude revision or Copilot handoff; verification records are append-only events, and only a user-recorded passing verification completes the task and releases file claims.
+
+External ChatGPT, Claude and Copilot execution remains manual. The UI copies packages but does not send them or claim external work happened. The native app rendered the Dashboard, Checkpoint Center and Handoff Center; current production DB contained zero checkpoint/handoff/task rows, so transactional form flows were verified with Rust tests rather than production UI submissions. Migration 007 applied to the existing DB; read-only `integrity_check` was `ok` and `foreign_key_check` returned no rows. Rust regression suite: 50 tests passed; frontend build and lint passed. See the Handoff Center section in `DATABASE.md` and `KNOWN_ISSUES.md` for boundaries. No new commit was created; HEAD remains `92f474d9c88bda4e8241e6fe275b75f52886d8c6`.
+
 ## Final manual verification session (2026-11-14)
 
 The user confirmed the following live UI and native window tests passed: duplicate active Firefox-path registration under Opera showed the expected Rust error with no profile row change; a nonexistent executable and nonexistent profile directory were rejected with their expected validation messages; minimize, restore, maximize, restore, normal close and restart worked; and Firefox Test Profile remained registered after restart. No screenshots were attached, so all of these outcomes are **user-confirmed**, not screenshot-verified. See `BROWSER_VERIFICATION.md` for the test-by-test evidence classification.
@@ -157,6 +163,17 @@ The final manual checks close the previously identified UI, invalid-path and win
 The final regression rerun passed: `npm run build`, `npm run lint`, `cargo test` (17 passed, 0 failed), `cargo fmt --check`, and `git diff --check`. No database or browser profile data was modified, no temporary profile was cleaned up, and no commit was created.
 
 **Phase 2 is ready for approval review, not approved automatically. Phase 3 has not started.** Preserve the accumulated changes and wait for explicit approval before committing or beginning later-phase implementation.
+
+## AI Command Intelligence and MVP stabilization — 2026-11-14
+
+- Added migration 008 and the AI Command screen. The local deterministic workforce summary and handoff prompt flows use actual application records and persist in SQLite. They are labeled as local outputs, not live AI responses. Conversation persistence was verified through native UI use and a full application close/restart.
+- OpenAI-compatible and Anthropic provider configuration is implemented in Rust. API credentials use Windows Credential Manager via the `keyring` crate; they are never stored in frontend storage or SQLite. A real provider connection test was **not performed** because no API key/provider credential is configured. Provider connectivity remains unverified; no live AI response is claimed.
+- Native Tauri screens were opened and visually inspected: Dashboard, Projects, Tasks/Task Queue, AI Workforce, Reminders, Checkpoint Center, Handoff Center, AI Command, Accounts and Browser Profiles. Existing records rendered. Empty task/checkpoint/handoff states match the database; no task or handoff test rows were inserted. No browser was launched.
+- Windows reminder delivery passed: an immediate reminder displayed in Windows Notification Center and was recorded as delivered; snooze reset delivery state without an extra attempt; completion persisted. A separately scheduled reminder was delivered after LEVI was closed and restarted. Both verification records were preserved. Windows Do Not Disturb was already on, so banner suppression is expected; notification history showed the notifications. Permission-denied behavior was not induced. Exact-once toast behavior across a crash remains inherently unguaranteed.
+- Read-only production database checks: `integrity_check=ok`, `foreign_key_check=[]`; migrations 1–8 are successful. Counts: 5 browser installations, 7 profiles, 1 account, 3 projects, 0 tasks, 2 reminder verification records, 0 task checkpoints, 0 task handoffs, 1 AI conversation and 1 AI message. The application was not used to reset or alter existing business records; verification-created reminder/conversation data remains.
+- Regression checks passed: `npm run build`, `npm run lint`, `cargo test -- --test-threads=1` (55 passed, 0 failed), `cargo fmt --check`, and `git diff --check`. Native Tauri development build and launch passed. Screens and interactions were verified visually; the native app closed normally. The app was not packaged/signed as a release installer.
+- Backup/restore remains **not implemented and not verified**. There is no in-app backup/restore path or documented tested restore procedure; this is a release-readiness blocker for safe user-managed recovery.
+- No Phase 3, LEVI Browser or Sunshine Home work was started. No commit has yet been created. The milestone commit is pending final diff review and excludes database files, browser profile data and generated build output.
 
 ## 2026-11-14 — Workforce implementation update
 

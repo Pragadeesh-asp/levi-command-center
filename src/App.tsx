@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type Database from '@tauri-apps/plugin-sql'
-import { Activity, AlertCircle, Archive, ArrowDownRight, ArrowUpRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp, Command, FolderKanban, Globe2, LayoutDashboard, ListTodo, MessageSquareText, Plus, Search, Settings, Users, UsersRound, Zap, type LucideIcon } from 'lucide-react'
+import { Activity, AlertCircle, Archive, ArrowDownRight, ArrowUpRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp, Command, FolderKanban, Globe2, History, LayoutDashboard, ListTodo, MessageSquareText, Plus, Search, Settings, Users, UsersRound, Workflow, Zap, type LucideIcon } from 'lucide-react'
 import { AccountsPage } from './features/accounts/AccountsPage'
 import { BrowserProfilesPage } from './features/browsers/BrowserProfilesPage'
 import { ProjectsPage } from './features/workforce/ProjectsPage'
 import { TasksPage } from './features/workforce/TasksPage'
 import { WorkforceCenter } from './features/workforce/WorkforceCenter'
 import { RemindersPage } from './features/reminders/RemindersPage'
+import { CheckpointCenter } from './features/workforce/CheckpointCenter'
+import { HandoffCenter } from './features/workforce/HandoffCenter'
+import { IntelligenceCenter } from './features/intelligence/IntelligenceCenter'
 import type { LaunchFeedback } from './features/browsers/types'
 import { errorMessage, getDatabase } from './lib/database'
 import './phase2.css'
@@ -16,9 +19,9 @@ import './App.css'
 const navGroups: { title: string; items: { label: string; icon: LucideIcon; disabled?: boolean }[] }[] = [
   { title: 'OPERATIONS', items: [
     { label: 'Overview', icon: LayoutDashboard }, { label: 'AI Workforce', icon: UsersRound }, { label: 'Accounts', icon: Users }, { label: 'Browser Profiles', icon: Globe2 },
-    { label: 'Projects', icon: FolderKanban }, { label: 'Tasks', icon: ListTodo }, { label: 'Output Vault', icon: Archive },
+    { label: 'Projects', icon: FolderKanban }, { label: 'Tasks', icon: ListTodo }, { label: 'Checkpoint Center', icon: History }, { label: 'Handoff Center', icon: Workflow }, { label: 'Output Vault', icon: Archive },
   ] },
-  { title: 'INTELLIGENCE', items: [{ label: 'LEVI AI', icon: MessageSquareText, disabled: true }] },
+  { title: 'INTELLIGENCE', items: [{ label: 'AI Command', icon: MessageSquareText }] },
   { title: 'CONTROL', items: [
     { label: 'Calendar', icon: CalendarDays }, { label: 'Reminders', icon: Bell }, { label: 'Activity', icon: Activity },
     { label: 'Analytics', icon: Activity }, { label: 'Settings', icon: Settings },
@@ -119,7 +122,7 @@ function App() {
     </aside>
     <main className="main-area">
       <header className="topbar"><div className="breadcrumb">LEVI COMMAND CENTER <span>/</span> <strong>{active}</strong></div><div className="top-actions"><label className="searchbox"><Search size={15}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search accounts and records..."/><kbd>⌘ K</kbd></label><button className="icon-button" aria-label="Notifications"><Bell size={17}/><i/></button><div className="avatar">L</div></div></header>
-      {dbError ? <div className="database-error"><AlertCircle size={18}/><div><strong>Local database could not be opened</strong><span>{dbError}</span></div></div> : !db ? <div className="database-loading">Opening local workspace…</div> : active === 'Overview' ? <Overview db={db} onAccounts={() => setNav('Accounts')}/> : active === 'AI Workforce' ? <WorkforceCenter db={db}/> : active === 'Accounts' ? <AccountsPage db={db}/> : active === 'Browser Profiles' ? <BrowserProfilesPage db={db}/> : active === 'Projects' ? <ProjectsPage db={db}/> : active === 'Tasks' ? <TasksPage db={db}/> : active === 'Reminders' ? <RemindersPage db={db}/> : <div className="future-page"><span className="eyebrow">{active === 'LEVI AI' ? 'INTELLIGENCE' : 'PLANNED CAPABILITY'}</span><h1>{active}</h1><p>This area is reserved for a later roadmap phase. No simulated data or functionality is shown here.</p>{active === 'LEVI AI' && <div className="levi-promise"><MessageSquareText size={19}/><div><strong>LEVI — Command Intelligence</strong><span>Context-aware assistance will be built on verified operations data in a future phase.</span></div></div>}</div>}
+      {dbError ? <div className="database-error"><AlertCircle size={18}/><div><strong>Local database could not be opened</strong><span>{dbError}</span></div></div> : !db ? <div className="database-loading">Opening local workspace…</div> : active === 'Overview' ? <Overview db={db} onAccounts={() => setNav('Accounts')}/> : active === 'AI Workforce' ? <WorkforceCenter db={db}/> : active === 'Accounts' ? <AccountsPage db={db}/> : active === 'Browser Profiles' ? <BrowserProfilesPage db={db}/> : active === 'Projects' ? <ProjectsPage db={db}/> : active === 'Tasks' ? <TasksPage db={db}/> : active === 'Checkpoint Center' ? <CheckpointCenter db={db}/> : active === 'Handoff Center' ? <HandoffCenter db={db}/> : active === 'AI Command' ? <IntelligenceCenter db={db}/> : active === 'Reminders' ? <RemindersPage db={db}/> : <div className="future-page"><span className="eyebrow">PLANNED CAPABILITY</span><h1>{active}</h1><p>This area is reserved for a later roadmap phase. No simulated data or functionality is shown here.</p></div>}
     </main>
   </div>
 }

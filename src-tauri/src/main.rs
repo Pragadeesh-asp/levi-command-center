@@ -2,6 +2,8 @@
 
 use tauri_plugin_sql::{Migration, MigrationKind};
 mod browser;
+mod handoffs;
+mod intelligence;
 mod reminders;
 mod workforce;
 
@@ -43,6 +45,18 @@ fn main() {
             sql: include_str!("../migrations/006_reminder_delivery.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 7,
+            description: "checkpoint_snapshots_and_task_handoffs",
+            sql: include_str!("../migrations/007_checkpoints_and_handoffs.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 8,
+            description: "ai_conversations",
+            sql: include_str!("../migrations/008_ai_conversations.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     tauri::Builder::default()
         .plugin(
@@ -74,6 +88,23 @@ fn main() {
             workforce::get_auto_assignment,
             workforce::mark_usage_limited,
             workforce::resume_usage_limited,
+            handoffs::save_task_checkpoint,
+            handoffs::report_task_completion,
+            handoffs::record_review_feedback,
+            handoffs::record_implementation_report,
+            handoffs::record_task_verification,
+            handoffs::mark_handoff_started,
+            handoffs::resume_from_checkpoint,
+            intelligence::get_ai_config,
+            intelligence::save_ai_config,
+            intelligence::remove_ai_api_key,
+            intelligence::test_ai_connection,
+            intelligence::create_ai_conversation,
+            intelligence::list_ai_conversations,
+            intelligence::get_ai_messages,
+            intelligence::send_ai_message,
+            intelligence::add_local_workforce_summary,
+            intelligence::add_handoff_prompt,
             reminders::save_reminder,
             reminders::update_reminder_state,
             reminders::set_reminder_notifications_enabled,

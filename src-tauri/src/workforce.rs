@@ -1206,7 +1206,10 @@ async fn save_file_claims(
     Ok(())
 }
 
-async fn release_claims(tx: &mut Transaction<'_, Sqlite>, task_id: &str) -> Result<(), String> {
+pub(crate) async fn release_claims(
+    tx: &mut Transaction<'_, Sqlite>,
+    task_id: &str,
+) -> Result<(), String> {
     let claims: Vec<(String, String)> = sqlx::query_as(
         "SELECT path_key,claim_kind FROM task_file_claims WHERE task_id=? AND status='active'",
     )
@@ -1415,7 +1418,7 @@ async fn history_if_changed(
     Ok(())
 }
 
-async fn insert_task_history(
+pub(crate) async fn insert_task_history(
     tx: &mut Transaction<'_, Sqlite>,
     task_id: &str,
     field: &str,
@@ -1427,7 +1430,7 @@ async fn insert_task_history(
     Ok(())
 }
 
-async fn insert_activity(
+pub(crate) async fn insert_activity(
     tx: &mut Transaction<'_, Sqlite>,
     kind: &str,
     description: &str,
