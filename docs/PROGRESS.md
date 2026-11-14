@@ -202,3 +202,12 @@ Verification update 2026-11-14: `npm run build`, `npm run lint`, 42 Rust tests, 
 - A Rust scheduler starts after the frontend database connection/migrations are ready, polls due reminders every 30 seconds, claims rows transactionally, uses stable notification identifiers, records successful delivery, and retries failures after five minutes. Old claims can be recovered after ten minutes. Due reminders remain persisted while LEVI is closed and are checked after the next launch.
 - Reminder tests cover single claiming, stale-claim recovery, delivery retry/backoff, snooze/reset, completion, invalid links and transaction rollback. The full Rust suite passed 42/42; `npm run build`, `npm run lint`, `cargo fmt --check` and `git diff --check` passed. The final queue interactions in the native UI and real Windows toast delivery remain unverified.
 - No notification permission was requested and no test toast/reminder was created. Therefore actual Windows toast visibility, permission denial messaging and end-to-end delivery remain unverified. Recurring reminders and delivery while LEVI is closed are not implemented.
+
+## Mission — GitHub recovery and remote setup (2026-11-15)
+
+- Verified GitHub identity: `Pragadeesh-asp`. Global Git author identity is `Pragadeesh-asp <pragadeesh409@gmail.com>`.
+- Created and verified the private repository: <https://github.com/Pragadeesh-asp/levi-command-center>. Owner is `Pragadeesh-asp`; GitHub default branch is `main`.
+- Configured `origin` as `https://github.com/Pragadeesh-asp/levi-command-center.git` and pushed `main` without force. Local `main` tracks `origin/main`.
+- Preserved existing commit `07dcafdb33ce20c2bb7d12aead8cf0ce6f73642d` and all prior history. The historical local branch `master` remains intact at that commit. Created `main` from the same history and added only the `.gitignore` data-protection rules before the initial push.
+- Initial push tip: `5d64305cd8777b1ed7f1f358adc05ed6c85fa566` (`chore: protect local and sensitive data from Git`). This section is a documentation-only follow-up commit pushed after the initial history transfer. See `git log -5 --oneline` and `git rev-parse HEAD` for the current pushed tip.
+- The project source and application behavior were not changed during this GitHub setup. The repository was clean and synchronized with `origin/main` at final verification.
