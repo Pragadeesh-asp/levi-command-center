@@ -14,6 +14,34 @@ dist-ssr
 /src-tauri/target/
 /src-tauri/gen/
 
+# Environment files and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+credentials.json
+secrets.json
+
+# Local databases and user-specific application state
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+**/EBWebView/
+**/WebView2Data/
+**/User Data/
+**/profile-isolation-lab/
+**/browser-profiles/
+**/browser-data/
+**/session-data/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
