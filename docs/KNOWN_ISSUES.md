@@ -1,5 +1,14 @@
 # Known issues and verification gaps
 
+## Intelligence Phase 2.1 safety closure — verification pending
+
+- Migration 009 and AI request/action hardening are implemented in the current uncommitted tree. Migration 009 has only been applied to disposable in-memory databases. The production SQLite database remains at migrations 1–8 and must not be opened by the app until a consistent backup is created and verified using the procedure in `DATABASE.md`.
+- Native Intelligence Center verification is intentionally unperformed: normal app startup applies migration 009 to its configured database. To preserve production data, this phase did not launch the native application. Frontend and Rust builds/tests do not prove native UI behavior.
+- No real provider is configured or tested. No credential was read or inspected and no external AI request was sent. Provider connectivity must be tested later only after the user configures credentials and approves the potentially billable connection check.
+- Automatic resend is intentionally absent. An interrupted request whose outcome cannot be known becomes `outcome_unknown`; the user may explicitly retry as a new request after seeing a duplicate-charge warning. A retry is not provider-side idempotency and cannot guarantee no duplicate provider charge.
+- Provider calls have a 45-second client timeout, redirects are disabled, and provider bodies/secrets are not returned in errors. Streaming and cancellation are not implemented. A server/network failure can still leave provider-side processing or billing uncertain.
+- The actual OS secure-store availability and configured-provider request construction have not been exercised in this phase. The existing Windows Credential Manager integration remains the only secret storage path; there is no plaintext fallback.
+
 Updated: 2026-11-14
 
 ## Phase 2 final audit — ready for approval review
@@ -93,3 +102,35 @@ Phase 2 is implemented and ready for approval review, not approved automatically
 - Read-only production SQLite checks passed (`integrity_check=ok`, no foreign-key violations); migrations 1–8 are applied. The database contains 2 reminder test records and 1 AI conversation/message from this authorized verification. They were preserved.
 - No backup/restore feature or tested recovery procedure exists. Establishing and verifying a SQLite-consistent backup/restore flow is required before making recovery claims or treating this as release-ready for valuable records.
 - Regression: frontend build, lint, 55 Rust tests, format check and diff check passed. No installer packaging/signing or release build was verified. Historical entries above describe earlier milestone states; this section is the latest closeout status.
+
+## Phase 2.1 final verification update (2026-11-16)
+
+- **Passed:** pre-migration SQLite online backup and independent checks; disposable restore checks (integrity, foreign keys, migration ledger and record counts); normal Tauri startup applied migration 009; production database read-only checks after normal app close returned `integrity_check=ok` and no foreign-key violations; existing project/task/reminder/conversation/message counts were preserved.
+- **Passed:** native dashboard and AI Command Intelligence rendering; existing local conversation and `LOCAL SUMMARY` label appeared; provider remained visibly unconfigured and the connection test was disabled. No provider request was sent and no credentials were configured. Note: loading provider status invoked the existing `has_secret` helper, which asks Windows Credential Manager for a provider-key value and reduces the result to a boolean; the secret value was not displayed or logged.
+- **Automated regression passed:** Command Center frontend build/lint, 72 Rust tests, Rust format/build and diff whitespace check; Browser frontend build, 16 Rust tests, Rust format/build and diff whitespace check. Browser native multi-tab tests remain unverified; see the Browser verification record.
+- **Not exercised in native UI:** task/reminder proposal approve/reject, stale/duplicate approval, interrupted-request recovery and provider error states. Rust/isolated-SQLite tests cover the data and transaction paths, but there was no isolated disposable native DB for submitting those flows without writing production test records.
+- **Not verified:** live provider connection, API-key/credential-store operation with an actual key, provider invalid-key/timeout response, streaming/cancellation, voice, installer packaging/signing and resource/performance measurements. Automatic Claude page-limit detection remains unimplemented.
+- The restore verification itself passed, but its disposable directory remains because cleanup was rejected by the environment. Exact path: `C:\Users\praga\AppData\Local\Temp\levi-restore-verification-6f8xw704`. It contains only the disposable restore test output; no production database or browser profile is in that directory. No alternate cleanup method was used.
+
+## Phase 3 — JARVIS Experience initial status (2026-11-16; superseded by the update below)
+
+Implemented: polished AI Command interface, persistent history UI over existing conversation commands, lazy Markdown rendering with inert links, bounded curated context disclosures, OpenAI-compatible protocol choice, configurable endpoint/model fields, model-list command, request cancellation and explicit uncertain-outcome state. New model parsing and cancellation tests pass.
+
+Not verified / blocked:
+
+- Native UI renders, but the current native app reports Windows Credential Manager unavailable. Saving a key and provider use therefore remain unverified and unavailable in this observed session. No credential was submitted or read for display.
+- FreeLLMAPI's exact user deployment URL has not been supplied. Published project docs describe OpenAI-compatible APIs, but deployment-specific model IDs, auth and URL remain unknown. OpenRouter compatibility is documented; no endpoint/model/key was configured and no live request was sent.
+- Only one provider endpoint is persisted at a time. A separately configured secondary provider and fallback selection are not implemented. Explicit retry is a user-triggered new request, not an automatic fallback.
+- Voice recognition and synthesis are disabled, with no microphone access. A selected local engine or approved external provider, data-flow decision and actual Windows device tests are still required.
+- Native conversation switching/new conversation persistence, live connection error states, model discovery, cancellation, and invalid-key/rate-limit/timeout scenarios were not submitted end-to-end.
+
+No provider requests or model-list requests were sent during verification. No API key was entered. No voice permission was requested.
+
+## Phase 3 provider status update (2026-11-16)
+
+- The earlier “Credential Manager unavailable” observation was a transient frontend initialization state: the first render used `credentialStoreAvailable=false` while the app was still fetching Rust configuration. The UI now shows `checking` until the result arrives. A Windows-only isolated-entry integration test verified Credential Manager availability and write/read/replace/delete/missing behavior. In the native UI, the secondary profile reported Credential Manager ready and no key saved. No user key was configured. Thus the store-readiness blocker is resolved; provider connectivity is still unverified.
+- Primary and secondary provider settings and credential references are now independent. The primary FreeLLMAPI URL is intentionally empty until the exact deployment URL is provided. The secondary OpenRouter URL defaults to `https://openrouter.ai/api/v1`. OpenRouter model-list display parsing accepts its documented `name` field as well as compatible `display_name` values.
+- Fallback is a persisted opt-in but manual decision only; LEVI does not silently fail over or replay an uncertain request. An alternate-provider retry requires a user confirmation, sends a new request ID, and warns about possible duplicate charges for unknown outcomes.
+- **Live tests remain unverified:** no API key was entered; no model-list request, connection prompt or provider chat request was invoked. The exact FreeLLMAPI endpoint and authentication details are still required. Do not treat successful Credential Manager access as successful provider connectivity.
+- Automated results for this update: 79 Rust tests passed, including the isolated Windows Credential Manager round-trip; frontend build/lint, Rust formatting/build and `git diff --check` passed. Native AI Command page rendered and showed the primary endpoint-missing state and secondary secure-store-ready state. No production records were intentionally changed; there was no schema migration.
+- Remaining issues: live provider authentication/model compatibility, provider error/timeout behavior with configured endpoints, and voice controls remain unverified/unavailable. Phase 3 is not complete.

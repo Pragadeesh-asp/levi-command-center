@@ -35,6 +35,71 @@ pub async fn save_reminder(app: AppHandle, reminder: ReminderInput) -> Result<()
     save_reminder_transaction(&pool, &reminder).await
 }
 
+#[cfg(test)]
+pub async fn create_ai_reminder_in_pool(
+    pool: &SqlitePool,
+    id: String,
+    title: String,
+    body: String,
+    due_at: String,
+    project_id: Option<String>,
+    task_id: Option<String>,
+) -> Result<String, String> {
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await.map_err(db_error)?;
+    let id =
+        create_ai_reminder_in_transaction(&mut tx, id, title, body, due_at, project_id, task_id)
+            .await?;
+    tx.commit().await.map_err(db_error)?;
+    Ok(id)
+}
+
+pub async fn create_ai_reminder_in_transaction(
+    tx: &mut Transaction<'_, sqlx::Sqlite>,
+    id: String,
+    title: String,
+    body: String,
+    due_at: String,
+    project_id: Option<String>,
+    task_id: Option<String>,
+) -> Result<String, String> {
+    let existing: Option<(String, String, String, Option<String>, Option<String>)> =
+        sqlx::query_as("SELECT title,body,due_at,project_id,task_id FROM reminders WHERE id=?")
+            .bind(&id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(db_error)?;
+    if let Some((old_title, old_body, old_due, old_project, old_task)) = existing {
+        let normalized_due: Option<String> = sqlx::query_scalar("SELECT datetime(?)")
+            .bind(due_at.trim())
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(db_error)?;
+        if old_title == title.trim()
+            && old_body == body.trim()
+            && Some(old_due) == normalized_due
+            && old_project == project_id
+            && old_task == task_id
+        {
+            return Ok(id);
+        }
+        return Err(
+            "The approved reminder action ID already belongs to a different reminder.".into(),
+        );
+    }
+    let reminder = ReminderInput {
+        id: id.clone(),
+        title: title.clone(),
+        body: body.clone(),
+        kind: "one_time".into(),
+        due_at: due_at.clone(),
+        account_id: None,
+        project_id: project_id.clone(),
+        task_id: task_id.clone(),
+    };
+    save_reminder_in_transaction(tx, &reminder).await?;
+    Ok(id)
+}
+
 #[tauri::command]
 pub async fn update_reminder_state(
     app: AppHandle,
@@ -96,6 +161,15 @@ async fn save_reminder_transaction(
     pool: &SqlitePool,
     reminder: &ReminderInput,
 ) -> Result<(), String> {
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await.map_err(db_error)?;
+    save_reminder_in_transaction(&mut tx, reminder).await?;
+    tx.commit().await.map_err(db_error)
+}
+
+async fn save_reminder_in_transaction(
+    tx: &mut Transaction<'_, sqlx::Sqlite>,
+    reminder: &ReminderInput,
+) -> Result<(), String> {
     let title = reminder.title.trim();
     if title.is_empty() || title.chars().count() > 120 {
         return Err("Reminder title must contain 1–120 characters.".into());
@@ -110,16 +184,15 @@ async fn save_reminder_transaction(
     }
     let valid_due: Option<String> = sqlx::query_scalar("SELECT datetime(?)")
         .bind(reminder.due_at.trim())
-        .fetch_one(pool)
+        .fetch_one(&mut **tx)
         .await
         .map_err(db_error)?;
     if valid_due.is_none() {
         return Err("Enter a valid reminder date and time.".into());
     }
-    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await.map_err(db_error)?;
-    validate_link(&mut tx, "accounts", reminder.account_id.as_deref()).await?;
-    validate_link(&mut tx, "projects", reminder.project_id.as_deref()).await?;
-    validate_link(&mut tx, "tasks", reminder.task_id.as_deref()).await?;
+    validate_link(tx, "accounts", reminder.account_id.as_deref()).await?;
+    validate_link(tx, "projects", reminder.project_id.as_deref()).await?;
+    validate_link(tx, "tasks", reminder.task_id.as_deref()).await?;
     if reminder.id.trim().is_empty() {
         return Err("Reminder identifier is required.".into());
     }
@@ -127,9 +200,9 @@ async fn save_reminder_transaction(
         .bind(reminder.id.trim()).bind(title).bind(reminder.body.trim()).bind(&reminder.kind)
         .bind(valid_due).bind(nonempty(reminder.account_id.as_deref()))
         .bind(nonempty(reminder.project_id.as_deref())).bind(nonempty(reminder.task_id.as_deref()))
-        .execute(&mut *tx).await.map_err(db_error)?;
+        .execute(&mut **tx).await.map_err(db_error)?;
     insert_activity(
-        &mut tx,
+        tx,
         "reminder_created",
         &format!("Created reminder: {title}"),
         nonempty(reminder.account_id.as_deref()),
@@ -137,7 +210,7 @@ async fn save_reminder_transaction(
         nonempty(reminder.task_id.as_deref()),
     )
     .await?;
-    tx.commit().await.map_err(db_error)
+    Ok(())
 }
 
 async fn validate_link(
@@ -355,6 +428,59 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn approved_ai_reminder_is_idempotent_and_audited_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = pool(&dir.path().join("ai-reminder.db")).await;
+        let first = create_ai_reminder_in_pool(
+            &db,
+            "ai-action-test".into(),
+            "Review output".into(),
+            "Inspect the saved deliverable".into(),
+            "2030-01-02T12:00:00Z".into(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let replay = create_ai_reminder_in_pool(
+            &db,
+            "ai-action-test".into(),
+            "Review output".into(),
+            "Inspect the saved deliverable".into(),
+            "2030-01-02T12:00:00Z".into(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(first, replay);
+        assert!(create_ai_reminder_in_pool(
+            &db,
+            "ai-action-test".into(),
+            "Different action".into(),
+            "Inspect the saved deliverable".into(),
+            "2030-01-02T12:00:00Z".into(),
+            None,
+            None,
+        )
+        .await
+        .is_err());
+        let count: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM reminders WHERE id='ai-action-test'")
+                .fetch_one(&db)
+                .await
+                .unwrap();
+        let activity: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM activity_logs WHERE activity_type='reminder_created'",
+        )
+        .fetch_one(&db)
+        .await
+        .unwrap();
+        assert_eq!(count, 1);
+        assert_eq!(activity, 1);
+    }
+
+    #[tokio::test]
     async fn due_reminder_is_claimed_once_and_marked_delivered() {
         let dir = tempfile::tempdir().unwrap();
         let db = pool(&dir.path().join("due.db")).await;
@@ -418,7 +544,12 @@ mod tests {
             .unwrap();
         claim_due_reminders(&db).await.unwrap();
         mark_delivered(&db, "r3").await.unwrap();
-        update_reminder_state_transaction(&db, "r3", "snooze", Some("2026-11-15T10:00:00Z"))
+        let snooze_until: String =
+            sqlx::query_scalar("SELECT strftime('%Y-%m-%dT%H:%M:%SZ','now','+5 minutes')")
+                .fetch_one(&db)
+                .await
+                .unwrap();
+        update_reminder_state_transaction(&db, "r3", "snooze", Some(&snooze_until))
             .await
             .unwrap();
         let row: (String, Option<String>, Option<String>) =

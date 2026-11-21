@@ -1,0 +1,65 @@
+/* Fixed desktop regions: the app shell never scrolls as a single web page. */
+html, body, #root { width: 100%; height: 100%; min-height: 0; margin: 0; overflow: hidden; overscroll-behavior: none; }
+body { position: fixed; inset: 0; }
+#root { position: absolute; inset: 0; }
+.app-shell { position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; display: flex; background: var(--levi-black); }
+.main-area { display: flex; flex: 1 1 auto; flex-direction: column; width: 100%; min-width: 0; min-height: 0; height: 100%; margin: 0 !important; overflow: hidden; }
+.main-area .topbar { position: relative; z-index: 2; flex: 0 0 auto; min-width: 0; }
+.workspace-scroll { flex: 1 1 auto; min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: #69716c transparent; }
+.workspace-scroll > * { min-width: 0; }
+.workspace-scroll .content { min-height: 100%; }
+.sidebar { position: fixed; z-index: 101; inset: 0 auto 0 0; width: min(288px, calc(100vw - 40px)); height: 100%; max-height: 100dvh; box-sizing: border-box; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #69716c transparent; transform: translateX(-105%); transition: transform 220ms cubic-bezier(.2,.75,.25,1); box-shadow: var(--levi-elevation-4); }
+.app-shell.sidebar-open .sidebar { transform: translateX(0); }
+.sidebar-scrim { position: fixed; z-index: 100; inset: 0; border: 0; padding: 0; background: #0b0d0dc2; cursor: default; }
+.navigation-toggle { flex: 0 0 40px; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--levi-border-subtle); border-radius: 10px; color: var(--levi-text-primary); background: var(--levi-surface-2); cursor: pointer; }
+.navigation-toggle:hover { color: var(--levi-black); background: var(--levi-navy); border-color: var(--levi-navy); }
+.navigation-toggle:focus-visible { outline: 2px solid var(--levi-navy); outline-offset: 2px; }
+.topbar { gap: 14px; }
+.breadcrumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top-actions { min-width: 0; }
+.app-shell.assistant-expanded .main-area { margin-right: calc(clamp(320px, 34vw, 460px) + 32px) !important; transition: margin-right 220ms cubic-bezier(.2,.75,.25,1); }
+.global-assistant-panel { position: fixed; z-index: 95; inset: 72px 16px 16px auto; display: flex; flex-direction: column; width: min(460px, calc(100vw - 32px)); height: auto; max-height: none; min-height: 0; overflow: hidden; border: 1px solid var(--levi-border-strong); border-radius: 16px; background: var(--levi-surface-1); box-shadow: var(--levi-elevation-4); }
+.global-assistant-header { flex: 0 0 auto; min-width: 0; }
+.global-assistant-messages { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #69716c transparent; }
+.global-assistant-privacy { flex: 0 0 auto; padding: 8px 14px; color: var(--levi-text-muted); font-size: 11px; }
+.global-assistant-privacy summary { cursor: pointer; }
+.global-assistant-privacy span { display: block; padding-top: 6px; line-height: 1.45; }
+.global-assistant-composer { flex: 0 0 auto; min-width: 0; }
+.global-assistant-launcher { z-index: 94; }
+.global-assistant-toolbar, .global-assistant-voice { display: none !important; }
+.global-assistant-full { flex: 0 0 auto; padding: 7px 10px; border: 1px solid var(--levi-border-subtle); border-radius: 8px; color: var(--levi-text-primary); background: var(--levi-surface-2); cursor: pointer; }
+.global-assistant-full:hover { color: var(--levi-black); background: var(--levi-navy); border-color: var(--levi-navy); }
+.global-assistant-header > div:nth-child(2) { min-width: 0; }
+.global-assistant-header > div:nth-child(2) span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Real, existing settings only. */
+.settings-page { box-sizing: border-box; max-width: 1320px; margin-inline: auto; padding: clamp(22px, 4vw, 44px); }
+.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.settings-card { min-width: 0; padding: 22px; }
+.settings-card-title { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.settings-card-title h2 { margin: 0 0 4px; color: var(--levi-text-primary); font-size: 17px; line-height: 1.25; }
+.settings-card-title p, .settings-card > p { margin: 0; color: var(--levi-text-secondary); font-size: 13px; line-height: 1.55; }
+.settings-icon { flex: 0 0 38px; width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--levi-border-subtle); border-radius: 10px; color: var(--levi-navy); background: var(--levi-surface-2); }
+.settings-palette { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+.settings-palette span { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--levi-text-secondary); font-size: 12px; }
+.settings-palette i { flex: 0 0 18px; width: 18px; height: 18px; border: 1px solid #FFFFFF3A; border-radius: 5px; }
+.swatch-gunmetal { background: #1C2126; }.swatch-lunar { background: #F4F4F0; }.swatch-lime { background: #C7F000; }
+.settings-card small { display: block; margin-top: 12px; color: var(--levi-text-muted); line-height: 1.5; }
+.settings-action { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; padding: 9px 12px; }
+.settings-control { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 14px; color: var(--levi-text-secondary); font-size: 13px; }
+.settings-control select, .settings-control input { grid-column: 1 / -1; width: 100%; min-width: 0; }
+.settings-control input[type=range] { accent-color: var(--levi-navy); }
+.settings-card ul { margin: 0; padding-left: 18px; color: var(--levi-text-secondary); font-size: 13px; line-height: 1.8; }
+.settings-planned { border-style: dashed; }
+
+@media (max-width: 760px) {
+  .topbar { padding-inline: 12px; }
+  .top-actions .top-search-beam { display: none; }
+  .settings-grid { grid-template-columns: minmax(0, 1fr); }
+  .settings-page { padding: 18px; }
+  .app-shell.assistant-expanded .main-area { margin-right: 0 !important; transition: none; }
+  .global-assistant-panel { inset: 64px 8px 8px; width: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar, .navigation-toggle, .global-assistant-panel, .app-shell.assistant-expanded .main-area { transition: none !important; animation: none !important; }
+}

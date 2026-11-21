@@ -1,0 +1,15 @@
+.levi-voice-beam{position:relative;isolation:isolate;min-width:0;border-radius:12px;overflow:hidden}
+.levi-voice-glass{position:relative;z-index:0;min-width:0;border:1px solid rgba(166,190,219,.2);border-radius:12px;background:rgba(9,15,27,.82);backdrop-filter:blur(12px);transition:border-color 210ms ease,box-shadow 210ms ease,background-color 210ms ease}
+.levi-voice-glass:focus-within{border-color:rgba(125,174,255,.72);background:rgba(9,15,27,.91);box-shadow:0 0 0 2px rgba(70,126,231,.16),0 8px 24px rgba(0,0,0,.16)}
+.levi-voice-glass::after{position:absolute;right:10%;bottom:0;left:10%;height:1px;border-radius:50%;background:linear-gradient(90deg,transparent,rgba(22,70,160,.38),rgba(125,206,245,.78) 46%,rgba(220,38,56,.42) 64%,rgba(22,70,160,.38),transparent);box-shadow:0 0 10px rgba(22,70,160,.3);content:"";opacity:.56;pointer-events:none;transition:opacity 210ms ease}
+.levi-voice-glass:focus-within::after{opacity:.9}
+.levi-voice-beam[data-voice-state="processing"] .levi-voice-glass{border-color:rgba(111,158,250,.48)}
+.levi-voice-beam[data-voice-state="processing"] .levi-voice-glass::after{background-size:200% 100%;animation:levi-voice-flow 2.4s ease-in-out infinite}
+.levi-voice-beam[data-voice-state="error"] .levi-voice-glass{border-color:rgba(220,38,56,.7);box-shadow:0 0 0 1px rgba(220,38,56,.14)}
+.levi-voice-beam[data-voice-state="error"] .levi-voice-glass::after{background:linear-gradient(90deg,transparent,rgba(220,38,56,.25),rgba(220,38,56,.8),rgba(220,38,56,.25),transparent);opacity:.85}
+.levi-voice-glass textarea{display:block;width:100%;min-width:0;margin:0;resize:vertical;color:#eef3fb;background:transparent;border:0;border-radius:inherit;outline:none;box-shadow:none;box-sizing:border-box}
+.levi-voice-glass textarea::placeholder{color:rgba(189,202,222,.65);opacity:1}
+.levi-voice-glass textarea:focus-visible{outline:2px solid transparent;outline-offset:-3px}
+.levi-voice-beam [data-voice-beam-bloom],.levi-voice-beam::before,.levi-voice-beam::after,.levi-voice-beam canvas{pointer-events:none}
+@keyframes levi-voice-flow{to{background-position:100% 0}}
+@media(prefers-reduced-motion:reduce){.levi-voice-glass,.levi-voice-glass:focus-within,.levi-voice-glass::after{transition:none}.levi-voice-beam[data-voice-state="processing"] .levi-voice-glass::after{animation:none}}

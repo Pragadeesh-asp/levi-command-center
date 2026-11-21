@@ -572,6 +572,71 @@ pub async fn save_task(app: AppHandle, task: TaskInput, is_update: bool) -> Resu
     save_task_transaction(&pool, &task, is_update).await
 }
 
+#[cfg(test)]
+pub async fn create_ai_task_in_pool(
+    pool: &SqlitePool,
+    id: String,
+    project_id: String,
+    title: String,
+    description: String,
+    priority: i64,
+) -> Result<String, String> {
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await.map_err(db_error)?;
+    let id = create_ai_task_in_transaction(&mut tx, id, project_id, title, description, priority)
+        .await?;
+    tx.commit().await.map_err(db_error)?;
+    Ok(id)
+}
+
+pub async fn create_ai_task_in_transaction(
+    tx: &mut Transaction<'_, Sqlite>,
+    id: String,
+    project_id: String,
+    title: String,
+    description: String,
+    priority: i64,
+) -> Result<String, String> {
+    let existing: Option<(String, String, String, i64)> = sqlx::query_as(
+        "SELECT project_id,title,description,priority FROM tasks WHERE id=? AND archived_at IS NULL",
+    )
+    .bind(&id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(db_error)?;
+    if let Some((existing_project, existing_title, existing_description, existing_priority)) =
+        existing
+    {
+        if existing_project == project_id
+            && existing_title == title.trim()
+            && existing_description == description.trim()
+            && existing_priority == priority
+        {
+            return Ok(id);
+        }
+        return Err("The approved task action ID already belongs to a different task.".into());
+    }
+    let task = TaskInput {
+        id: id.clone(),
+        project_id: Some(project_id.clone()),
+        account_id: None,
+        title: title.clone(),
+        description: description.clone(),
+        priority,
+        status: "backlog".into(),
+        deadline: None,
+        expected_minutes: None,
+        instructions: String::new(),
+        completion_notes: String::new(),
+        blocker: String::new(),
+        depends_on: Vec::new(),
+        intended_files: String::new(),
+        modified_files: String::new(),
+        released_files: String::new(),
+    };
+    save_task_transaction_in_tx(tx, &task, false, false).await?;
+    Ok(id)
+}
+
 #[tauri::command]
 pub async fn archive_task(app: AppHandle, task_id: String) -> Result<(), String> {
     let pool = database(&app).await?;
@@ -617,6 +682,17 @@ async fn save_task_transaction(
 
 async fn save_task_transaction_with_guard(
     pool: &SqlitePool,
+    task: &TaskInput,
+    is_update: bool,
+    require_unassigned: bool,
+) -> Result<(), String> {
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await.map_err(db_error)?;
+    save_task_transaction_in_tx(&mut tx, task, is_update, require_unassigned).await?;
+    tx.commit().await.map_err(db_error)
+}
+
+async fn save_task_transaction_in_tx(
+    tx: &mut Transaction<'_, Sqlite>,
     t: &TaskInput,
     is_update: bool,
     require_unassigned: bool,
@@ -649,10 +725,9 @@ async fn save_task_transaction_with_guard(
     let account_id = nonempty(t.account_id.as_deref());
     // Serialize assignment eligibility checks and project file claims with the write so two concurrent
     // saves cannot both claim the same available worker.
-    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await.map_err(db_error)?;
     let old: Option<TaskSnapshot> = if is_update {
         sqlx::query_as("SELECT project_id,account_id,title,description,priority,status,deadline,expected_minutes,instructions,completion_notes,blocker FROM tasks WHERE id=? AND archived_at IS NULL")
-            .bind(&t.id).fetch_optional(&mut *tx).await.map_err(db_error)?
+            .bind(&t.id).fetch_optional(&mut **tx).await.map_err(db_error)?
     } else {
         None
     };
@@ -670,11 +745,11 @@ async fn save_task_transaction_with_guard(
             return Err("This task was changed or assigned by another action. Refresh the queue before assigning it.".into());
         }
     }
-    validate_dependencies(&mut tx, &t.id, project_id, &t.depends_on).await?;
+    validate_dependencies(tx, &t.id, project_id, &t.depends_on).await?;
     if !is_update
         && sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM tasks WHERE id=?")
             .bind(&t.id)
-            .fetch_one(&mut *tx)
+            .fetch_one(&mut **tx)
             .await
             .map_err(db_error)?
             > 0
@@ -686,7 +761,7 @@ async fn save_task_transaction_with_guard(
             "SELECT 1 FROM projects WHERE id=? AND archived_at IS NULL AND status='active'",
         )
         .bind(pid)
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&mut **tx)
         .await
         .map_err(db_error)?;
         if active.is_none() {
@@ -703,7 +778,7 @@ async fn save_task_transaction_with_guard(
              JOIN browsers b ON b.id=bp.browser_id WHERE a.id=? AND bp.archived_at IS NULL",
         )
         .bind(aid)
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&mut **tx)
         .await
         .map_err(db_error)?;
         let Some((account_status, browser_status, profile_status, archived_at)) = account else {
@@ -736,7 +811,7 @@ async fn save_task_transaction_with_guard(
                 )
                 .bind(aid)
                 .bind(&t.id)
-                .fetch_optional(&mut *tx)
+                .fetch_optional(&mut **tx)
                 .await
                 .map_err(db_error)?;
                 if let Some(title) = conflict {
@@ -750,7 +825,7 @@ async fn save_task_transaction_with_guard(
             )
             .bind(pid)
             .bind(aid)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut **tx)
             .await
             .map_err(db_error)?;
             if linked.is_none() {
@@ -769,7 +844,7 @@ async fn save_task_transaction_with_guard(
         )
         .bind(&t.id)
         .bind(key)
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&mut **tx)
         .await
         .map_err(db_error)?;
         if declared.is_none()
@@ -784,7 +859,7 @@ async fn save_task_transaction_with_guard(
         declared_files.retain(|(declared_key, _, _)| declared_key != key);
     }
     if account_id.is_some() || t.status == "completed" {
-        validate_dependencies_complete(&mut tx, &t.id).await?;
+        validate_dependencies_complete(tx, &t.id).await?;
         if account_id.is_some()
             && matches!(
                 t.status.as_str(),
@@ -792,7 +867,7 @@ async fn save_task_transaction_with_guard(
             )
         {
             if let Some(pid) = project_id {
-                validate_file_claims(&mut tx, &t.id, pid, &declared_files).await?;
+                validate_file_claims(tx, &t.id, pid, &declared_files).await?;
             }
         }
     }
@@ -800,10 +875,10 @@ async fn save_task_transaction_with_guard(
     }
     sqlx::query("INSERT INTO tasks(id,project_id,account_id,title,description,priority,status,deadline,expected_minutes,instructions,completion_notes,blocker,completed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,CASE WHEN ?='completed' THEN datetime('now') ELSE NULL END) ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id,account_id=excluded.account_id,title=excluded.title,description=excluded.description,priority=excluded.priority,status=excluded.status,deadline=excluded.deadline,expected_minutes=excluded.expected_minutes,instructions=excluded.instructions,completion_notes=excluded.completion_notes,blocker=excluded.blocker,completed_at=CASE WHEN excluded.status='completed' THEN COALESCE(tasks.completed_at,datetime('now')) ELSE NULL END,updated_at=datetime('now')")
         .bind(&t.id).bind(project_id).bind(account_id).bind(title).bind(&t.description).bind(t.priority).bind(&t.status).bind(&t.deadline).bind(t.expected_minutes).bind(&t.instructions).bind(&t.completion_notes).bind(&t.blocker).bind(&t.status)
-        .execute(&mut *tx).await.map_err(db_error)?;
-    save_dependencies(&mut tx, &t.id, &t.depends_on).await?;
+        .execute(&mut **tx).await.map_err(db_error)?;
+    save_dependencies(tx, &t.id, &t.depends_on).await?;
     save_file_claims(
-        &mut tx,
+        tx,
         &t.id,
         project_id,
         &declared_files,
@@ -822,14 +897,14 @@ async fn save_task_transaction_with_guard(
         .bind(&t.id)
         .bind(key)
         .bind(display)
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await
         .map_err(db_error)?;
-        insert_task_history(&mut tx, &t.id, "file_released", None, Some(display)).await?;
+        insert_task_history(tx, &t.id, "file_released", None, Some(display)).await?;
     }
     if let Some(old) = old {
         history_if_changed(
-            &mut tx,
+            tx,
             &t.id,
             "project_id",
             old.project_id.as_deref(),
@@ -837,16 +912,16 @@ async fn save_task_transaction_with_guard(
         )
         .await?;
         history_if_changed(
-            &mut tx,
+            tx,
             &t.id,
             "account_id",
             old.account_id.as_deref(),
             account_id,
         )
         .await?;
-        history_if_changed(&mut tx, &t.id, "title", Some(&old.title), Some(title)).await?;
+        history_if_changed(tx, &t.id, "title", Some(&old.title), Some(title)).await?;
         history_if_changed(
-            &mut tx,
+            tx,
             &t.id,
             "description",
             Some(&old.description),
@@ -854,16 +929,16 @@ async fn save_task_transaction_with_guard(
         )
         .await?;
         history_if_changed(
-            &mut tx,
+            tx,
             &t.id,
             "priority",
             Some(&old.priority.to_string()),
             Some(&t.priority.to_string()),
         )
         .await?;
-        history_if_changed(&mut tx, &t.id, "status", Some(&old.status), Some(&t.status)).await?;
+        history_if_changed(tx, &t.id, "status", Some(&old.status), Some(&t.status)).await?;
         history_if_changed(
-            &mut tx,
+            tx,
             &t.id,
             "deadline",
             old.deadline.as_deref(),
@@ -873,7 +948,7 @@ async fn save_task_transaction_with_guard(
         let old_minutes = old.expected_minutes.map(|v| v.to_string());
         let new_minutes = t.expected_minutes.map(|v| v.to_string());
         history_if_changed(
-            &mut tx,
+            tx,
             &t.id,
             "expected_minutes",
             old_minutes.as_deref(),
@@ -881,7 +956,7 @@ async fn save_task_transaction_with_guard(
         )
         .await?;
         history_if_changed(
-            &mut tx,
+            tx,
             &t.id,
             "instructions",
             Some(&old.instructions),
@@ -889,35 +964,28 @@ async fn save_task_transaction_with_guard(
         )
         .await?;
         history_if_changed(
-            &mut tx,
+            tx,
             &t.id,
             "completion_notes",
             Some(&old.completion_notes),
             Some(&t.completion_notes),
         )
         .await?;
-        history_if_changed(
-            &mut tx,
-            &t.id,
-            "blocker",
-            Some(&old.blocker),
-            Some(&t.blocker),
-        )
-        .await?;
+        history_if_changed(tx, &t.id, "blocker", Some(&old.blocker), Some(&t.blocker)).await?;
     } else {
-        insert_task_history(&mut tx, &t.id, "created", None, Some(title)).await?;
+        insert_task_history(tx, &t.id, "created", None, Some(title)).await?;
         for (field, value) in [
             ("status", t.status.as_str()),
             ("account_id", account_id.unwrap_or("")),
             ("project_id", project_id.unwrap_or("")),
         ] {
             if !value.is_empty() {
-                insert_task_history(&mut tx, &t.id, field, None, Some(value)).await?;
+                insert_task_history(tx, &t.id, field, None, Some(value)).await?;
             }
         }
     }
     insert_activity(
-        &mut tx,
+        tx,
         if is_update {
             "task_updated"
         } else {
@@ -932,7 +1000,7 @@ async fn save_task_transaction_with_guard(
         Some(&t.id),
     )
     .await?;
-    tx.commit().await.map_err(db_error)
+    Ok(())
 }
 
 fn normalize_file_declarations(
@@ -1607,6 +1675,58 @@ mod tests {
                 .unwrap(),
             0
         );
+    }
+
+    #[tokio::test]
+    async fn approved_ai_task_is_idempotent_and_remains_unassigned_backlog() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = pool(&dir.path().join("ai-task.db")).await;
+        save_project_transaction(&db, &project("p-ai", "AI action test"), false)
+            .await
+            .unwrap();
+        let first = create_ai_task_in_pool(
+            &db,
+            "ai-action-task".into(),
+            "p-ai".into(),
+            "Draft release notes".into(),
+            "Summarize verified changes".into(),
+            2,
+        )
+        .await
+        .unwrap();
+        let replay = create_ai_task_in_pool(
+            &db,
+            "ai-action-task".into(),
+            "p-ai".into(),
+            "Draft release notes".into(),
+            "Summarize verified changes".into(),
+            2,
+        )
+        .await
+        .unwrap();
+        assert_eq!(first, replay);
+        assert!(create_ai_task_in_pool(
+            &db,
+            "ai-action-task".into(),
+            "p-ai".into(),
+            "Conflicting title".into(),
+            "Summarize verified changes".into(),
+            2,
+        )
+        .await
+        .is_err());
+        let (status, account): (String, Option<String>) =
+            sqlx::query_as("SELECT status,account_id FROM tasks WHERE id='ai-action-task'")
+                .fetch_one(&db)
+                .await
+                .unwrap();
+        assert_eq!(status, "backlog");
+        assert_eq!(account, None);
+        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM tasks WHERE id='ai-action-task'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(count, 1);
     }
 
     #[tokio::test]

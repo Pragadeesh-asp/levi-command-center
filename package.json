@@ -11,13 +11,19 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.9.1",
-    "@tauri-apps/plugin-notification": "^2.3.2",
     "@tauri-apps/plugin-dialog": "^2.5.0",
+    "@tauri-apps/plugin-notification": "^2.3.2",
     "@tauri-apps/plugin-sql": "^2.3.1",
+    "border-beam": "^1.4.1",
+    "liquid-gooey": "^0.2.2",
     "lucide-react": "^0.468.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-markdown": "^10.1.0",
     "recharts": "^3.5.1",
+    "remark-gfm": "^4.0.1",
+    "thinking-orbs": "^0.3.2",
+    "voice-glow": "^0.3.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

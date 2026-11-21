@@ -1,0 +1,111 @@
+@import "./levi-tokens.css";
+
+:root { color: var(--levi-text-primary); background: var(--levi-background-app); --cyan: var(--levi-blue-soft); --panel: var(--levi-surface-1); --line: var(--levi-border-subtle); }
+body { color: var(--levi-text-primary); background: var(--levi-background-app); }
+.app-shell { background: var(--levi-black); }
+.sidebar { background: var(--levi-surface-1); border-color: var(--levi-border-subtle); box-shadow: 8px 0 26px #02071920; }
+.brand-mark { color: var(--levi-black); background: var(--levi-crimson); border: 1px solid var(--levi-crimson); border-radius: var(--levi-radius-sm); box-shadow: var(--levi-elevation-1); }
+.brand-mark span { color: var(--levi-black); }
+.brand strong, .panel-heading h2, .metric-value, .profile-copy h3 { color: var(--levi-text-primary); }
+.brand span, .workspace-label, .nav-caption, .build-label, .breadcrumb, .eyebrow { color: var(--levi-text-muted); }
+.workspace { background: var(--levi-surface-2); border-color: var(--levi-border-subtle); border-radius: var(--levi-radius-md); box-shadow: var(--levi-elevation-1); }
+.workspace-avatar, .avatar { color: var(--levi-black); background: var(--levi-blue-soft); border-color: transparent; }
+.nav-item { color: var(--levi-text-secondary); transition: color var(--levi-motion-fast) var(--levi-ease-standard), background-color var(--levi-motion-fast) var(--levi-ease-standard), box-shadow var(--levi-motion-fast) var(--levi-ease-standard); }
+.nav-item:hover { color: var(--levi-text-primary); background: var(--levi-surface-3); }
+.nav-item.selected { color: var(--levi-blue-soft); background: var(--levi-surface-2); box-shadow: inset 2px 0 var(--levi-crimson); }
+.help-card { color: var(--levi-text-primary); background: var(--levi-surface-2); border-color: var(--levi-border-subtle); border-radius: var(--levi-radius-md); box-shadow: var(--levi-elevation-1); }
+.help-card p, .subtitle, .metric-detail, .panel-heading p { color: var(--levi-text-secondary); }
+.help-icon, .help-card button, .text-button { color: var(--levi-blue-soft); }
+.topbar { border-color: var(--levi-border-subtle); }
+.searchbox { color: var(--levi-text-secondary); background: var(--levi-surface-1); border-color: var(--levi-border-subtle); border-radius: var(--levi-radius-xl); }
+.searchbox:focus-within { border-color: var(--levi-blue-soft); box-shadow: var(--levi-focus-ring); }
+.metric-card, .panel, .profile-card, .account-card, .browser-card, .reminder-card, .checkpoint-hero, .checkpoint-row, .handoff-card, .ai-chat-panel, .ai-settings, .browser-test-panel, .form-modal, .detected-section, .checkpoint-form, .compare-panel, .task-queue-panel {
+  color: var(--levi-text-primary);
+  background: var(--levi-surface-1);
+  border-color: var(--levi-border-subtle);
+  border-radius: var(--levi-radius-lg);
+  box-shadow: var(--levi-elevation-1);
+  transition: border-color var(--levi-motion-normal) var(--levi-ease-standard), box-shadow var(--levi-motion-normal) var(--levi-ease-standard), transform var(--levi-motion-normal) var(--levi-ease-standard);
+}
+.metric-card:hover, .panel:hover, .profile-card:hover, .account-card:hover, .browser-card:hover, .reminder-card:hover, .checkpoint-row:hover, .handoff-card:hover {
+  border-color: var(--levi-border-strong);
+  box-shadow: var(--levi-elevation-2);
+}
+.button-primary, .button-open, .quick-add, .button-create, .button-save {
+  color: var(--levi-black);
+  background: var(--levi-crimson);
+  border: 1px solid var(--levi-crimson);
+  border-radius: var(--levi-radius-sm);
+  box-shadow: var(--levi-elevation-1);
+  transition: color var(--levi-motion-fast) var(--levi-ease-standard), background-color var(--levi-motion-fast) var(--levi-ease-standard), box-shadow var(--levi-motion-fast) var(--levi-ease-standard), transform var(--levi-motion-fast) var(--levi-ease-standard);
+}
+.button-primary:hover:not(:disabled), .button-open:hover:not(:disabled), .quick-add:hover:not(:disabled), .button-create:hover:not(:disabled), .button-save:hover:not(:disabled) { color: var(--levi-black); background: var(--levi-button-primary-hover); box-shadow: var(--levi-elevation-2); transform: translateY(-1px); }
+.button-primary:active:not(:disabled), .button-open:active:not(:disabled), .quick-add:active:not(:disabled) { transform: translateY(1px); }
+.button-secondary, .text-button, .icon-button, .card-icon-button { border-radius: var(--levi-radius-sm); transition: color var(--levi-motion-fast) var(--levi-ease-standard), background-color var(--levi-motion-fast) var(--levi-ease-standard), border-color var(--levi-motion-fast) var(--levi-ease-standard), transform var(--levi-motion-fast) var(--levi-ease-standard); }
+.button-secondary { color: var(--levi-text-secondary); background: var(--levi-surface-2); border-color: var(--levi-border-subtle); }
+.button-secondary:hover:not(:disabled), .icon-button:hover:not(:disabled), .card-icon-button:hover:not(:disabled) { color: var(--levi-blue-soft); background: var(--levi-surface-3); border-color: var(--levi-border-strong); }
+.button-secondary:active:not(:disabled), .icon-button:active:not(:disabled), .card-icon-button:active:not(:disabled) { transform: translateY(1px); }
+.nav-item:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--levi-blue-soft); outline-offset: 2px; box-shadow: var(--levi-focus-ring); }
+input, select, textarea { color: var(--levi-text-primary); background-color: var(--levi-surface-0); border-color: #435071; border-radius: var(--levi-radius-sm); }
+input::placeholder, textarea::placeholder { color: var(--levi-text-muted); }
+input:focus, select:focus, textarea:focus { border-color: var(--levi-blue-soft); }
+.modal-backdrop { background: #020719B8; }
+.form-modal { background: var(--levi-surface-2); box-shadow: var(--levi-elevation-4); }
+.profile-row, .detected-row, .quick-account-row, .overview-task-row, .reminder-row-actions, .checkpoint-detail, .ai-conversation-row, .ai-message { border-color: var(--levi-border-subtle); }
+.chart-placeholder, .chart-area, .chart-orb, .quick-empty, .list-empty, .empty-feature, .no-profiles, .future-page { background: var(--levi-surface-0); border-color: var(--levi-border-subtle); border-radius: var(--levi-radius-md); }
+.chart-orb, .quick-icon, .empty-feature-icon { color: var(--levi-blue-soft); }
+.heading-period, .danger-text, .inline-error, .status-needs_attention { color: var(--levi-crimson); }
+.inline-notice { color: var(--levi-text-primary); background: var(--levi-surface-2); border-color: var(--levi-border-strong); border-radius: var(--levi-radius-sm); }
+::selection { color: var(--levi-black); background: var(--levi-blue-soft); }
+
+
+/* V2 palette balance and shared interaction language */
+:root, body, #root, .app-shell { color-scheme: dark; background: var(--levi-background-app); }
+.app-shell { font-size: var(--levi-font-size-body); }
+.sidebar { width: 256px; padding-inline: 16px; }
+.brand { gap: 12px; }
+.brand-mark { width: 38px; height: 38px; }
+.brand strong { font-size: 11px; letter-spacing: .7px; }
+.brand span { font-size: 9px; letter-spacing: 1px; }
+.workspace { min-height: 52px; }
+.workspace strong { font-size: 12px; }
+.workspace small { font-size: 11px; }
+.workspace-label, .nav-caption { font-size: 10px; }
+.nav-item { min-height: 40px; height: auto; font-size: 13px; }
+.help-card strong { font-size: 12px; }
+.help-card p { font-size: 11px; }
+.help-card button { font-size: 11px; }
+.build-label { font-size: 9px; }
+.breadcrumb { font-size: 12px; }
+.searchbox input { font-size: 12px; }
+.searchbox kbd { font-size: 10px; }
+.content { padding: 38px clamp(24px, 3vw, 48px) 24px; }
+.page-heading h1 { font-size: var(--levi-font-size-heading); }
+.subtitle { font-size: 14px; }
+.eyebrow { font-size: 10px; letter-spacing: .8px; }
+.button-secondary, .button-primary { min-height: 38px; height: auto; font-size: 12px; }
+.metric-card { min-height: 145px; height: auto; }
+.metric-top { font-size: 12px; }
+.metric-icon { width: 30px; height: 30px; }
+.metric-value { font-size: 28px; }
+.metric-detail { font-size: 11px; }
+.metric-trend { font-size: 10px; }
+.panel-heading h2 { font-size: 14px; }
+.panel-heading p { font-size: 11px; }
+.text-button { font-size: 11px; }
+.quick-empty strong, .chart-empty strong { font-size: 12px; }
+.chart-empty>span, .quick-empty>span { font-size: 11px; }
+.overview-task-row { min-height: 36px; }
+.sidebar { background: var(--levi-surface-1); box-shadow: 8px 0 26px #00000035; }
+.nav-item.selected { color: var(--levi-text-primary); background: var(--levi-navy); }
+.nav-item.selected svg { color: var(--levi-blue-soft); }
+.button-primary, .button-open, .quick-add, .button-create, .button-save { color: var(--levi-button-primary-foreground); background: var(--levi-button-primary-background); border-color: var(--levi-button-primary-background); }
+.button-primary:hover:not(:disabled), .button-open:hover:not(:disabled), .quick-add:hover:not(:disabled), .button-create:hover:not(:disabled), .button-save:hover:not(:disabled) { color: var(--levi-button-primary-foreground); background: var(--levi-button-primary-hover); }
+.button-secondary { color: var(--levi-button-secondary-foreground); background: var(--levi-button-secondary-background); }
+.workspace-avatar, .avatar { color: var(--levi-text-primary); background: var(--levi-navy); border-color: var(--levi-blue-border); }
+.metric-icon.blue, .metric-icon.cyan, .metric-icon.violet { color: var(--levi-blue-soft); background: var(--levi-surface-2); }
+.metric-trend.blue, .metric-trend.cyan, .metric-trend.violet, .heading-period, .text-button, .help-icon, .help-card button { color: var(--levi-blue-soft); }
+.chart-area { background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 31px, #FFFFFF0B 32px); }
+.metric-card, .panel, .profile-card, .account-card, .browser-card, .reminder-card, .checkpoint-hero, .checkpoint-row, .handoff-card, .ai-chat-panel, .ai-settings, .browser-test-panel, .form-modal, .detected-section, .checkpoint-form, .compare-panel, .task-queue-panel { background: var(--levi-surface-1); }
+.workspace, .help-card, .inline-notice { background: var(--levi-surface-2); }
+.button-primary:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline-color: var(--levi-blue-soft); }

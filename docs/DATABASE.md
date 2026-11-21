@@ -64,3 +64,48 @@ Migration 008 adds persistent AI conversation and message tables, scoped to loca
 ## Release backup and restore status (2026-11-14)
 
 Backup/restore is not implemented or verified. There is no in-app backup/restore interface and no tested recovery procedure. Before distributing the application as a user-data-bearing release, add and test a SQLite-consistent backup (SQLite online backup API or `VACUUM INTO`) and restore into a separate database. Validate integrity and foreign keys after restore. Never test restore over the live database or replace it without an explicit user action. The current closeout did not copy, reset, or modify the production database for testing; all verification reads used SQLite read-only mode.
+
+## Migration 009 — AI request recovery and approval proposals
+
+Migration 009 is additive. It creates `ai_requests` with a unique request ID, conversation/user-message references, payload hash, processing/recovery counters, lease timestamps and explicit `processing`, `completed`, `failed` or `outcome_unknown` states. `ai_action_proposals` stores a strict typed action JSON value, a SHA-256 fingerprint, approval status, error and result. JSON validity, status values and reference uniqueness are constrained in SQLite. Rust performs request reservation/recovery and proposal review/execution inside `BEGIN IMMEDIATE` transactions. A changed proposal or stale displayed fingerprint is rejected before execution; task/reminder, activity/history and executed proposal status commit together. SQLx migration-runner tests apply migrations 001–009 twice to an isolated in-memory database and check the migration ledger/integrity; a deliberately broken migration confirms transactional rollback and retry on a disposable test database. Existing AI history is retained by the additive migration. The production database was not migrated in this phase.
+
+### Required operator procedure before migration 009
+
+Migration 009 will be applied by the normal Tauri SQL plugin migration runner the next time the app opens its database. Do not launch the application until the backup is complete and verified.
+
+1. Close LEVI Command Center normally and confirm its process has exited. Do not copy only a live SQLite main file while WAL writes may be active.
+2. Create a dated backup outside the repository. With the SQLite CLI installed, run in PowerShell (adjust only the backup folder if needed):
+
+   ```powershell
+   $db = Join-Path $env:APPDATA 'com.local.claude-command-center\command-center.db'
+   $backupDir = Join-Path $env:USERPROFILE 'Documents\LEVI-backups'
+   New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+   $backup = Join-Path $backupDir ("command-center-pre-009-{0}.db" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+   sqlite3 $db ".backup '$backup'"
+   if ($LASTEXITCODE -ne 0) { throw 'SQLite backup failed; do not launch LEVI.' }
+   sqlite3 $backup 'PRAGMA integrity_check;'
+   sqlite3 $backup 'PRAGMA foreign_key_check;'
+   Get-FileHash -Algorithm SHA256 $backup
+   ```
+
+3. Continue only if backup creation succeeds, `integrity_check` prints `ok`, `foreign_key_check` prints no rows, and the backup hash is recorded. Keep the original backup unchanged.
+4. Launch LEVI normally once to apply migrations 1–9. If startup reports a migration error, close the app and preserve both the untouched pre-migration backup and the current database for diagnosis. Do not manually edit `_sqlx_migrations` or rerun SQL by hand.
+5. After successful startup, close LEVI and inspect the active database read-only. Confirm integrity, no foreign-key violations, and migration ledger version 9. Compare existing conversation/message counts with the pre-launch read-only counts; migration 009 must not remove history.
+6. A restore has not been tested. To validate a restore, restore the backup to a separate disposable database and run integrity/FK checks there. Never overwrite the live database as a test. Restoring the pre-009 backup to production would discard all database changes made after that backup and should only be done as an explicit recovery decision with LEVI closed.
+
+This procedure describes the preflight that was current on 2026-11-14. It was superseded by the verified run recorded below; the old statement that migration 009 is pending is historical and no longer current.
+
+## Migration 009 production application and recovery verification (2026-11-16)
+
+- With LEVI closed, the SQLite online backup API produced `C:\Users\praga\Documents\LEVI-backups\command-center-pre-009-20261116-171705.db` outside the repository (303,104 bytes; SHA-256 `7d3dea1d53c0107379c3eeca035373fbe1db3bd369deabd8575e5b4a427e9d5f`). Independent read-only validation found migrations 1–8, `integrity_check=ok`, no foreign-key violations and the expected existing row counts. The backup was left unchanged.
+- A separate disposable restore was opened and checked successfully: integrity, foreign keys, migration history and row counts matched the backup. The verification script did not close its SQLite destination connection before temporary-directory cleanup. The exact disposable directory remains at `C:\Users\praga\AppData\Local\Temp\levi-restore-verification-6f8xw704`; the environment rejected removal, and no alternative cleanup was attempted. This temporary output is not the production database.
+- Normal Tauri application startup ran the configured SQLx/Tauri migration runner; no migration SQL was applied manually. After a normal application-window close and dev-runner exit, read-only inspection confirmed migrations 1–9, `integrity_check=ok`, no foreign-key violations, and presence of `ai_requests` and `ai_action_proposals`. Existing counts remained projects=3, tasks=0, reminders=2, conversations=1, messages=1. The two new tables have zero rows. No verification records were inserted into production.
+- This verifies one production backup and one restore into a separate disposable database, not an in-app backup/restore feature, scheduled backup policy, or recovery-over-production procedure. Keep the pre-009 backup as a read-only recovery point; restoring it over production would omit migration 009 and any later data.
+
+## Phase 3 JARVIS provider and voice notes (initial snapshot, superseded below)
+
+The AI Command UX and provider request controls reuse the existing `settings` key/value table and Windows Credential Manager; no migration was introduced. Model catalog results are transient and are not persisted. AI conversation/action storage remains migration 008/009. The user's exact FreeLLMAPI deployment endpoint is pending; do not create a guessed provider URL/model or initiate a request until configuration and credentials are explicitly authorized. Current implementation stores a single active provider endpoint, not a second independent provider slot or automatic fallback policy. Voice is not configured and stores no audio.
+
+### Phase 3 provider settings correction (2026-11-16)
+
+The implementation now stores primary values in the existing `ai_provider`, `ai_base_url`, and `ai_model` settings keys, and secondary values in `ai_secondary_provider`, `ai_secondary_base_url`, and `ai_secondary_model`. The `ai_manual_fallback_enabled` setting stores the user’s opt-in for **manual alternate-provider retry**; it does not enable automatic failover. Credentials are held separately in Windows Credential Manager, keyed by provider profile, protocol and normalized endpoint. No key material is stored in SQLite. These are additive key/value entries only: schema and migrations 001–009 are unchanged. The endpoint and model catalog is not written to any new database tables. No production provider settings were configured during verification.

@@ -57,6 +57,12 @@ fn main() {
             sql: include_str!("../migrations/008_ai_conversations.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 9,
+            description: "ai_requests_and_approved_actions",
+            sql: include_str!("../migrations/009_ai_actions.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     tauri::Builder::default()
         .plugin(
@@ -96,13 +102,20 @@ fn main() {
             handoffs::mark_handoff_started,
             handoffs::resume_from_checkpoint,
             intelligence::get_ai_config,
+            intelligence::get_ai_secondary_config,
             intelligence::save_ai_config,
+            intelligence::set_ai_fallback_enabled,
             intelligence::remove_ai_api_key,
             intelligence::test_ai_connection,
+            intelligence::list_ai_models,
+            intelligence::cancel_ai_request,
             intelligence::create_ai_conversation,
             intelligence::list_ai_conversations,
             intelligence::get_ai_messages,
             intelligence::send_ai_message,
+            intelligence::get_ai_action_proposals,
+            intelligence::recover_interrupted_ai_requests,
+            intelligence::resolve_ai_action_proposal,
             intelligence::add_local_workforce_summary,
             intelligence::add_handoff_prompt,
             reminders::save_reminder,

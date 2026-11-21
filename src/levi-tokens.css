@@ -1,0 +1,89 @@
+:root {
+  --levi-gunmetal: #1C2126;
+  --levi-lunar: #F4F4F0;
+  --levi-lime: #C7F000;
+  --levi-danger: #E5817C;
+  /* Official LEVI accents */
+  --levi-black: var(--levi-gunmetal);
+  --levi-navy: var(--levi-lime);
+  --levi-crimson: var(--levi-lime);
+
+  /* Tonal surfaces keep the black foundation dominant and make navy legible. */
+  --levi-surface-0: #1C2126;
+  --levi-surface-1: #23292F;
+  --levi-surface-2: #2B3238;
+  --levi-surface-3: #343C42;
+  --levi-surface-4: #3D464C;
+  --levi-blue-soft: #D6F04A;
+  --levi-blue-border: #C7F00080;
+  --levi-crimson-soft: #D8F43B;
+  --levi-crimson-wash: #C7F0001F;
+  --levi-text-primary: var(--levi-lunar);
+  --levi-text-secondary: #D0D2CC;
+  --levi-text-muted: #A8ADA8;
+  --levi-border-subtle: #F4F4F01C;
+  --levi-border-strong: #C7F00068;
+
+  --levi-space-1: 4px;
+  --levi-space-2: 8px;
+  --levi-space-3: 12px;
+  --levi-space-4: 16px;
+  --levi-space-5: 20px;
+  --levi-space-6: 24px;
+  --levi-font-size-caption: 11px;
+  --levi-font-size-small: 12px;
+  --levi-font-size-body: 14px;
+  --levi-font-size-body-large: 16px;
+  --levi-font-size-heading: 30px;
+  --levi-radius-sm: 8px;
+  --levi-radius-md: 12px;
+  --levi-radius-lg: 16px;
+  --levi-radius-xl: 20px;
+  --levi-elevation-1: 0 1px 2px #00000070, 0 6px 16px #00000035, inset 0 1px #FFFFFF08;
+  --levi-elevation-2: 0 2px 5px #00000078, 0 12px 24px #00000048, inset 0 1px #FFFFFF0A;
+  --levi-elevation-3: 0 8px 24px #00000080, 0 24px 44px #00000060, inset 0 1px #FFFFFF0A;
+  --levi-elevation-4: 0 16px 36px #00000090, 0 36px 60px #00000070, inset 0 1px #FFFFFF0D;
+  --levi-motion-fast: 190ms;
+  --levi-motion-normal: 220ms;
+  --levi-ease-standard: cubic-bezier(.2, .75, .25, 1);
+  --levi-focus-ring: 0 0 0 3px #C7F00038;
+
+  /* Semantic roles shared by the desktop applications. */
+  --levi-background-app: var(--levi-surface-0);
+  --levi-background-chrome: var(--levi-surface-1);
+  --levi-surface-raised: var(--levi-surface-2);
+  --levi-surface-overlay: var(--levi-surface-3);
+  --levi-text-on-accent: var(--levi-gunmetal);
+  --levi-text-disabled: #737A78;
+  --levi-border-default: var(--levi-border-subtle);
+  --levi-border-focus: var(--levi-blue-soft);
+  --levi-focus-color: var(--levi-blue-soft);
+  --levi-button-primary-background: var(--levi-crimson);
+  --levi-button-primary-foreground: var(--levi-text-on-accent);
+  --levi-button-primary-hover: var(--levi-crimson-soft);
+  --levi-button-accent-background: var(--levi-navy);
+  --levi-button-accent-foreground: var(--levi-text-on-accent);
+  --levi-button-accent-hover: var(--levi-surface-4);
+  --levi-button-secondary-background: var(--levi-surface-2);
+  --levi-button-secondary-foreground: var(--levi-text-primary);
+  --levi-button-secondary-hover: var(--levi-surface-3);
+  --levi-status-success: #A6CF58;
+  --levi-status-info: var(--levi-blue-soft);
+  --levi-status-warning: #E3C36B;
+  --levi-status-danger: var(--levi-danger);
+  --levi-status-neutral: var(--levi-text-muted);
+  --levi-shadow-card: var(--levi-elevation-1);
+  --levi-shadow-card-hover: var(--levi-elevation-2);
+  --levi-shadow-dialog: var(--levi-elevation-4);
+  --levi-duration-interaction: var(--levi-motion-fast);
+  --levi-duration-surface: var(--levi-motion-normal);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
