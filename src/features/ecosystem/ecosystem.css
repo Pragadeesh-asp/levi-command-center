@@ -1,0 +1,60 @@
+/* LEVI ecosystem controls: app switcher, Settings card, "Open in Space" menu.
+   Ecosystem accents: Command Center lime, LEVI Browser sky, LEVI OS violet. */
+:root {
+  --levi-app-command-center: var(--levi-lime);
+  --levi-app-browser: #7DD3FC;
+  --levi-app-os: #A78BFA;
+}
+
+.app-switcher { position: relative; }
+.app-switcher-button[aria-expanded="true"] { border-color: var(--levi-border-strong); color: var(--levi-lime); }
+.app-switcher-panel {
+  position: absolute; right: 0; top: calc(100% + 10px); z-index: 60; width: 330px;
+  display: grid; gap: 6px; padding: 10px;
+  background: var(--levi-surface-2); border: 1px solid var(--levi-border-subtle); border-radius: var(--levi-radius-lg);
+  box-shadow: var(--levi-elevation-4);
+}
+.app-switcher-panel .eyebrow { padding: 4px 6px; }
+.app-tile {
+  display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center;
+  padding: 9px; border-radius: var(--levi-radius-md); border: 1px solid var(--levi-border-subtle);
+}
+.app-tile.current { border-color: var(--levi-border-strong); background: color-mix(in srgb, var(--levi-lime) 6%, transparent); }
+.app-tile strong { display: block; font-size: 13px; color: var(--levi-text-primary); }
+.app-tile small { display: block; font-size: 11.5px; color: var(--levi-text-muted); overflow-wrap: anywhere; }
+.app-tile .button-secondary { padding: 6px 10px; font-size: 12px; }
+.app-tile-mark {
+  width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+  font-weight: 700; font-size: 13px; color: var(--levi-gunmetal);
+}
+.app-tile-mark.cc { background: var(--levi-app-command-center); }
+.app-tile-mark.browser { background: var(--levi-app-browser); }
+.app-tile-mark.os { background: var(--levi-app-os); }
+.app-tile-here { font-size: 11px; color: var(--levi-lime); }
+.app-switcher-message { margin: 4px 6px 2px; font-size: 12px; color: var(--levi-text-secondary); }
+
+.ecosystem-card .ecosystem-browser { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; font-size: 13px; color: var(--levi-text-secondary); }
+.ecosystem-card .ecosystem-browser strong { color: var(--levi-text-primary); }
+.ecosystem-problem { color: var(--levi-status-warning); }
+.ecosystem-form { display: grid; gap: 10px; }
+.ecosystem-form input, .ecosystem-form select { width: 100%; }
+.ecosystem-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.space-picker { position: relative; display: inline-flex; }
+.space-open:disabled { opacity: .5; cursor: not-allowed; }
+.space-menu {
+  position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 40; min-width: 220px; max-width: 280px;
+  display: grid; gap: 2px; padding: 6px;
+  background: var(--levi-surface-2); border: 1px solid var(--levi-border-subtle); border-radius: var(--levi-radius-md);
+  box-shadow: var(--levi-elevation-3);
+}
+.space-menu p { margin: 6px 8px; font-size: 12px; color: var(--levi-text-muted); }
+.space-menu button {
+  display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px; border: 0; border-radius: var(--levi-radius-sm);
+  background: transparent; color: var(--levi-text-primary); font-size: 13px; text-align: left; cursor: pointer;
+}
+.space-menu button:hover, .space-menu button:focus-visible { background: var(--levi-surface-3); }
+.space-menu i {
+  width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  font-style: normal; font-size: 11px; font-weight: 700; color: var(--levi-gunmetal);
+}

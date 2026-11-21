@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowUpRight, Check, MicOff, Settings2, ShieldCheck, Volume2 } from 'lucide-react'
+import { EcosystemSettings } from '../ecosystem/EcosystemSettings'
 
 interface SettingsPageProps {
   voiceName: string
@@ -38,6 +39,8 @@ export function SettingsPage({ voiceName, speechRate, onVoiceChange, onSpeechRat
         <p>Configure providers, model selection, and connection checks in AI Command.</p>
         <button type="button" className="button-secondary settings-action" onClick={onOpenAiSettings}>Open AI Command <ArrowUpRight size={14}/></button>
       </section>
+
+      <EcosystemSettings />
 
       <section className="panel settings-card">
         <div className="settings-card-title"><span className="settings-icon"><Volume2 size={17}/></span><div><h2>Voice and speech</h2><p>Local Windows speech playback. No audio is uploaded.</p></div></div>

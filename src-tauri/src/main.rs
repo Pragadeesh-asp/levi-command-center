@@ -3,6 +3,7 @@
 use tauri_plugin_sql::{Migration, MigrationKind};
 mod browser;
 mod db;
+mod ecosystem;
 mod handoffs;
 mod intelligence;
 mod reminders;
@@ -97,6 +98,11 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .manage(db::DbState::default())
         .manage(reminders::ReminderSchedulerState::default())
+        .setup(|app| {
+            // Lets LEVI Browser and the other LEVI apps find this executable.
+            ecosystem::publish_manifest(app.handle());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             browser::detect_browsers,
             browser::validate_browser_path,
@@ -147,6 +153,10 @@ fn main() {
             reminders::set_reminder_notifications_enabled,
             reminders::get_reminder_notifications_enabled,
             reminders::start_reminder_scheduler,
+            ecosystem::get_ecosystem,
+            ecosystem::save_levi_os,
+            ecosystem::open_in_levi_browser,
+            ecosystem::open_levi_browser,
         ])
         .run(tauri::generate_context!())
         .expect("error while running LEVI Command Center");
