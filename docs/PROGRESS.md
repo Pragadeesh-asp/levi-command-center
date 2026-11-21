@@ -1,5 +1,17 @@
 # Development progress
 
+## Week 1 stabilization (2026-11-22)
+
+Branch `wip/week1-stabilize` (local; not pushed). It starts from `7550872`, a snapshot of all previously uncommitted work (JARVIS phase 3, Settings, UI overhaul and migration 009, which was already applied to the local database). `artifacts/` screenshots stay untracked.
+
+- **Shared SQLite pool.** Every command used to open a new `SqlitePool` (45 call sites). `src-tauri/src/db.rs` now holds one lazily created pool in Tauri state with the same options; other modules import `crate::db::database`.
+- **Backups and WAL.** A `levi-db-guard` plugin runs before `tauri-plugin-sql`: verified `VACUUM INTO` snapshot before any pending migration (startup stops if it fails), one daily snapshot (newest 14 kept), then WAL mode. Details and the manual restore procedure are in `DATABASE.md`.
+- **Log files.** `tauri-plugin-log` writes info-and-above to the console and rotating files (5 × 5 MB, local time) in `%LOCALAPPDATA%\com.local.claude-command-center\logs`. The reminder scheduler's `eprintln!` now logs as an error, so failures survive release builds.
+- **Repository hygiene.** `.gitattributes` (LF everywhere; the index was already LF, so no files changed) and a GitHub Actions workflow on `windows-latest`: `npm ci`, build, oxlint, `cargo fmt --check`, clippy, `cargo test` (skips the Credential Manager round trip).
+- **Checks passed:** `npm run build`, `npm run lint`, `cargo fmt --check`, 86 Rust tests (80 existing plus 6 new in `db.rs`; the Credential Manager round trip was skipped so nothing was written to the local credential store). Clippy shows 13 existing style warnings and none from the new code.
+- **Not verified:** a native launch with these changes (the first one will create the first daily snapshot and switch the database to WAL), the CI workflow on GitHub (branch not pushed), and the main-bundle size warning (587 kB) is unchanged.
+- Remaining audit items, including `sql:allow-execute`, raw SQL in React, JARVIS tool calling and streaming, are not part of this milestone.
+
 ## Premium desktop UI and usability update (2026-11-17)
 
 - The active shared palette is Gunmetal Black `#1C2126`, Lunar White `#F4F4F0`, and Neon Lime `#C7F000`; semantic surface, text, focus, border, button, status, shadow, motion and reduced-motion tokens are defined in `src/levi-tokens.css`.

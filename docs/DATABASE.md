@@ -109,3 +109,30 @@ The AI Command UX and provider request controls reuse the existing `settings` ke
 ### Phase 3 provider settings correction (2026-11-16)
 
 The implementation now stores primary values in the existing `ai_provider`, `ai_base_url`, and `ai_model` settings keys, and secondary values in `ai_secondary_provider`, `ai_secondary_base_url`, and `ai_secondary_model`. The `ai_manual_fallback_enabled` setting stores the user’s opt-in for **manual alternate-provider retry**; it does not enable automatic failover. Credentials are held separately in Windows Credential Manager, keyed by provider profile, protocol and normalized endpoint. No key material is stored in SQLite. These are additive key/value entries only: schema and migrations 001–009 are unchanged. The endpoint and model catalog is not written to any new database tables. No production provider settings were configured during verification.
+
+## Automatic backups, shared pool and WAL (2026-11-22)
+
+Implemented in `src-tauri/src/db.rs`. No schema change and no new migration.
+
+**Startup guard.** The `levi-db-guard` plugin is registered after logging and before `tauri-plugin-sql`, and plugins initialize in registration order, so it runs before any migration:
+
+1. No `command-center.db` yet (first launch): it does nothing; the SQL plugin creates and migrates the file.
+2. The `_sqlx_migrations` ledger is behind the newest compiled migration: it writes `backups/command-center-pre-migration-vNNN-to-vMMM-<local time>.db` with `VACUUM INTO`, reopens the copy, switches it to a single-file rollback journal and requires `PRAGMA integrity_check` = `ok`. **If any of that fails, startup stops** with the reason in the log file and the database untouched. This replaces the manual pre-migration procedure above; keep using that procedure only if you want an extra copy outside the app folder.
+3. Otherwise, if the newest daily snapshot is older than 24 hours, it writes `backups/command-center-daily-<local time>.db` the same way and keeps the newest 14 daily snapshots. A failed daily snapshot is logged and retried next launch; it never blocks startup. Pre-migration snapshots are never pruned.
+4. It switches the database to WAL (`PRAGMA journal_mode=WAL`, a persistent file setting) so the plugin's pool and the Rust pool no longer block each other. `synchronous` stays at SQLite's default (FULL) for durability.
+
+**Locations (Windows).** Database: `%APPDATA%\com.local.claude-command-center\command-center.db`. Snapshots: `%APPDATA%\com.local.claude-command-center\backups\`. Logs: `%LOCALAPPDATA%\com.local.claude-command-center\logs\`. Snapshots contain everything in the database, including AI conversation text; API keys are not in SQLite.
+
+**Shared pool.** Rust commands now share one lazily created `SqlitePool` held in Tauri state (`db::DbState`) with the previous options: foreign keys on, 5-second busy timeout, never create the file. Paths follow tauri-plugin-sql, which resolves `sqlite:` against `app_config_dir` (identical to `app_data_dir` on Windows).
+
+**WAL side files.** While LEVI runs, `command-center.db-wal` and `command-center.db-shm` sit next to the database. They are normal and are already covered by `.gitignore` (`*.db-*`). Never copy `command-center.db` alone while LEVI is running; use a snapshot or the SQLite online backup API.
+
+**Restore a snapshot (manual; no in-app restore yet).**
+
+1. Close LEVI completely.
+2. Keep the current state first: `sqlite3 command-center.db ".backup 'command-center-before-restore.db'"`.
+3. Delete `command-center.db-wal` and `command-center.db-shm` if they exist. They belong to the current database and must not be applied to the restored file.
+4. Copy the chosen snapshot over `command-center.db`.
+5. Start LEVI. If the snapshot predates the newest migration, the guard takes a new pre-migration snapshot and the SQL plugin migrates it.
+
+**Verification.** `db.rs` tests cover first launch, pre-migration snapshot plus WAL switch, fail-closed startup when the backup folder can't be created, daily snapshot cadence and 14-file retention, the shared pool's foreign keys and WAL mode, and that the guard and the SQL plugin's `preload` entry name the same file. Not yet observed in the native app: the first launch with these changes will create the first daily snapshot and switch the existing database to WAL.

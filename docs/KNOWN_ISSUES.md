@@ -1,5 +1,13 @@
 # Known issues and verification gaps
 
+## Week 1 stabilization status (2026-11-22)
+
+- Automatic snapshots now run at startup (before migrations, and daily), and log files exist. Restore is still manual and has no in-app screen; follow the procedure in `DATABASE.md`.
+- If a pre-migration snapshot fails, LEVI stops at startup on purpose, without a dialog. The reason is in the newest file under `%LOCALAPPDATA%\com.local.claude-command-center\logs`.
+- The guard, WAL switch and log files are covered by Rust tests but have not been observed in a native launch yet.
+- The new CI workflow has not run on GitHub because `wip/week1-stabilize` has not been pushed. Windows runners count double against private-repository Actions minutes.
+- Still open from the 2026-11-22 audit: the webview's `sql:allow-execute` permission and direct table writes from `BrowserProfilesPage.tsx`, raw SQL in React screens, auto-assignment polling from a React timer, JARVIS proposal parsing/streaming/usage capture, and the 587 kB main bundle.
+
 ## Intelligence Phase 2.1 safety closure — verification pending
 
 - Migration 009 and AI request/action hardening are implemented in the current uncommitted tree. Migration 009 has only been applied to disposable in-memory databases. The production SQLite database remains at migrations 1–8 and must not be opened by the app until a consistent backup is created and verified using the procedure in `DATABASE.md`.
