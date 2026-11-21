@@ -149,7 +149,7 @@ pub async fn start_reminder_scheduler(
     tauri::async_runtime::spawn(async move {
         loop {
             if let Err(error) = deliver_due_reminders(&app).await {
-                eprintln!("Reminder scheduler check failed: {error}");
+                log::error!("Reminder scheduler check failed: {error}");
             }
             tokio::time::sleep(std::time::Duration::from_secs(30)).await;
         }

@@ -8,6 +8,22 @@ mod intelligence;
 mod reminders;
 mod workforce;
 
+/// Writes to the console and to rotating files in the app log folder
+/// (%LOCALAPPDATA%\com.local.claude-command-center\logs on Windows).
+fn log_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
+    tauri_plugin_log::Builder::new()
+        .targets([
+            Target::new(TargetKind::Stdout),
+            Target::new(TargetKind::LogDir { file_name: None }),
+        ])
+        .level(log::LevelFilter::Info)
+        .max_file_size(5 * 1024 * 1024)
+        .rotation_strategy(RotationStrategy::KeepSome(5))
+        .timezone_strategy(TimezoneStrategy::UseLocal)
+        .build()
+}
+
 fn main() {
     let migrations = vec![
         Migration {
@@ -68,8 +84,9 @@ fn main() {
     let latest_migration = migrations.iter().map(|m| m.version).max().unwrap_or(0);
     let database_url = format!("sqlite:{}", db::DATABASE_FILE);
     tauri::Builder::default()
-        // Plugins initialize in registration order: the guard backs up the
-        // database before the SQL plugin applies any pending migration.
+        // Plugins initialize in registration order: logging starts first, then
+        // the guard backs up the database before the SQL plugin migrates it.
+        .plugin(log_plugin())
         .plugin(db::guard_plugin(latest_migration))
         .plugin(
             tauri_plugin_sql::Builder::default()
