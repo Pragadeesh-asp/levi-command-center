@@ -1,18 +1,19 @@
+use crate::db::database;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
-use sqlx::sqlite::SqlitePoolOptions;
-use sqlx::{sqlite::SqliteConnectOptions, FromRow, SqlitePool};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::{FromRow, SqlitePool};
+#[cfg(test)]
+use std::time::Duration;
 use std::{
     collections::HashSet,
     env,
     path::{Path, PathBuf},
     process::Command,
-    time::Duration,
 };
 #[cfg(windows)]
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 use tauri::AppHandle;
-use tauri::Manager;
 use url::Url;
 use uuid::Uuid;
 
@@ -1032,23 +1033,6 @@ fn validate_profile_paths(
         user_data_directory: canonical_user_data,
         detection_method: detection_method.to_owned(),
     })
-}
-
-pub(crate) async fn database(app: &AppHandle) -> Result<SqlitePool, String> {
-    let path = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Could not locate the LEVI data directory: {e}"))?
-        .join("command-center.db");
-    SqlitePool::connect_with(
-        SqliteConnectOptions::new()
-            .filename(path)
-            .create_if_missing(false)
-            .foreign_keys(true)
-            .busy_timeout(Duration::from_secs(5)),
-    )
-    .await
-    .map_err(db_error)
 }
 
 async fn record_launch(

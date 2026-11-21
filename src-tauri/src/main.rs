@@ -2,6 +2,7 @@
 
 use tauri_plugin_sql::{Migration, MigrationKind};
 mod browser;
+mod db;
 mod handoffs;
 mod intelligence;
 mod reminders;
@@ -64,14 +65,20 @@ fn main() {
             kind: MigrationKind::Up,
         },
     ];
+    let latest_migration = migrations.iter().map(|m| m.version).max().unwrap_or(0);
+    let database_url = format!("sqlite:{}", db::DATABASE_FILE);
     tauri::Builder::default()
+        // Plugins initialize in registration order: the guard backs up the
+        // database before the SQL plugin applies any pending migration.
+        .plugin(db::guard_plugin(latest_migration))
         .plugin(
             tauri_plugin_sql::Builder::default()
-                .add_migrations("sqlite:command-center.db", migrations)
+                .add_migrations(&database_url, migrations)
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .manage(db::DbState::default())
         .manage(reminders::ReminderSchedulerState::default())
         .invoke_handler(tauri::generate_handler![
             browser::detect_browsers,

@@ -1,4 +1,4 @@
-use crate::browser::database;
+use crate::db::database;
 use serde::Deserialize;
 use sqlx::{SqlitePool, Transaction};
 use std::sync::atomic::{AtomicBool, Ordering};

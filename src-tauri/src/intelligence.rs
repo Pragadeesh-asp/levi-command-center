@@ -1,4 +1,4 @@
-use crate::browser::database;
+use crate::db::database;
 use keyring::Entry;
 use reqwest::{redirect::Policy, Client, StatusCode};
 use serde::{Deserialize, Serialize};

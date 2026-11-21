@@ -1,4 +1,4 @@
-use crate::browser::database;
+use crate::db::database;
 use serde::Deserialize;
 #[cfg(test)]
 use serde::Serialize;
