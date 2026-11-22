@@ -6,7 +6,16 @@
 - If a pre-migration snapshot fails, LEVI stops at startup on purpose, without a dialog. The reason is in the newest file under `%LOCALAPPDATA%\com.local.claude-command-center\logs`.
 - The guard, WAL switch and log files are covered by Rust tests but have not been observed in a native launch yet.
 - The new CI workflow has not run on GitHub because `wip/week1-stabilize` has not been pushed. Windows runners count double against private-repository Actions minutes.
-- Still open from the 2026-11-22 audit: the webview's `sql:allow-execute` permission and direct table writes from `BrowserProfilesPage.tsx`, raw SQL in React screens, auto-assignment polling from a React timer, JARVIS proposal parsing/streaming/usage capture, and the 587 kB main bundle.
+- Still open from the 2026-11-22 audit: the webview's `sql:allow-execute` permission and direct table writes from `BrowserProfilesPage.tsx`, raw SQL in React screens, auto-assignment polling from a React timer, JARVIS streaming, and the 595 kB main bundle.
+
+## Ecosystem bridge v1 and JARVIS tool calling (2026-11-22)
+
+- **Not run natively.** "Open in Space", the LEVI apps switcher and the LEVI ecosystem settings card are covered by Rust tests (manifest parsing, executable and URL rules) and a clean frontend build, not by a launch of both apps. The Browser must run once to write `%LOCALAPPDATA%\LEVI\ecosystem\browser.json` before Command Center can find it.
+- In a debug setup the Browser's chrome pages come from its Vite dev server. If Command Center starts a debug Browser while that server isn't running, the Browser window opens without its toolbar; use `npm run tauri dev` in the Browser repo first, or a release build.
+- "Open in Space" asks the Browser to open a page; the activity log records the request and the host only. LEVI does not confirm the page actually opened.
+- **No live provider call has been made.** Native tool calling, the text-protocol fallback, usage capture and truncated-reply handling are covered by fixtures in Rust tests. The first real provider reply will be the first live check; usage appears under that reply as "in · out · seconds".
+- The tool fallback retries once, with the text protocol, only after the provider refuses the request (HTTP 400, 404 or 422). A refused request was not processed, so no duplicate charge is possible. Timeouts, network errors and 5xx answers are still never resent.
+- Migration 010 runs on the next launch. The startup guard takes a pre-migration snapshot first (`backups\command-center-pre-migration-v009-to-v010-…db`); if that snapshot fails, LEVI stops instead of migrating.
 
 ## Intelligence Phase 2.1 safety closure — verification pending
 

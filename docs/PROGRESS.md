@@ -1,5 +1,17 @@
 # Development progress
 
+## Ecosystem bridge v1 and JARVIS tool calling (2026-11-22)
+
+Same branch, `wip/week1-stabilize`, commits `504c631` (bridge) and `7b51935` (JARVIS).
+
+- **LEVI ecosystem bridge v1.** Command Center publishes `%LOCALAPPDATA%\LEVI\ecosystem\command-center.json` and reads LEVI Browser's `browser.json` (schema 1) to list its Spaces. "Open in Space" starts the Browser with `--space <id> --open <url>`; a running Browser receives it through its single-instance plugin. Only Spaces listed in the manifest and an existing, absolute `levi…browser….exe` are ever launched, with an argument vector (no shell). New UI: a LEVI apps switcher in the top bar, a "LEVI ecosystem" Settings card (LEVI OS address plus the Space that opens it, stored in `settings`), and a SPACE button on account cards.
+- **JARVIS native tool calling.** `create_task` and `create_reminder` are offered as provider tools (Anthropic `tool_use`, OpenAI-compatible function tools). A call becomes the same fingerprinted approval card; nothing runs until approved. If a model refuses the tool definitions with HTTP 400/404/422, JARVIS retries once with the text protocol and remembers that for the profile until its settings are saved again.
+- **Tolerant text protocol.** `LEVI_ACTION_PROPOSAL` is found anywhere in a reply (brace-matching scanner, code fences tolerated); surrounding prose is kept; the envelope stays strict.
+- **Replies.** A reply cut at the output-token limit is now saved with a note instead of being discarded, and no action is taken from it. One shared HTTP client (15 s connect, 100 s total, inside the two-minute lease). The workspace snapshot is fenced as data in the system prompt.
+- **Usage ledger (migration 010, additive).** `ai_requests` stores provider-reported prompt/completion/total tokens, latency, finish reason and tool mode. Live replies show "in · out · seconds".
+- **Checks passed:** 99 Rust tests (8 new for JARVIS, 5 for the bridge), `cargo fmt --check`, clippy (13 older style warnings, none new), `npm run build`, `npm run lint`.
+- **Not verified:** a native run of either app with these changes, and any live provider request. See `KNOWN_ISSUES.md`.
+
 ## Week 1 stabilization (2026-11-22)
 
 Branch `wip/week1-stabilize` (local; not pushed). It starts from `7550872`, a snapshot of all previously uncommitted work (JARVIS phase 3, Settings, UI overhaul and migration 009, which was already applied to the local database). `artifacts/` screenshots stay untracked.

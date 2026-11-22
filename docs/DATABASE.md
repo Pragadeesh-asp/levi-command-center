@@ -135,4 +135,8 @@ Implemented in `src-tauri/src/db.rs`. No schema change and no new migration.
 4. Copy the chosen snapshot over `command-center.db`.
 5. Start LEVI. If the snapshot predates the newest migration, the guard takes a new pre-migration snapshot and the SQL plugin migrates it.
 
+## Migration 010 — AI request usage and tool mode (2026-11-22)
+
+Additive only: six nullable columns on `ai_requests` (`prompt_tokens`, `completion_tokens`, `total_tokens`, `latency_ms`, `finish_reason`, `tool_mode` in `native`/`text`), each with a non-negative or enum check. Existing rows keep `NULL`. Counts are what the provider reported; when it reports input and output but no total, the total is their sum. Nothing is estimated. Settings keys `ai_tool_mode` and `ai_secondary_tool_mode` hold `text` only after a model refused native tools; saving that profile's provider settings deletes the key. The ecosystem bridge adds settings keys `levi_os_url` and `levi_os_space` (no schema change). Migration 010 runs at the next launch after the startup guard's pre-migration snapshot.
+
 **Verification.** `db.rs` tests cover first launch, pre-migration snapshot plus WAL switch, fail-closed startup when the backup folder can't be created, daily snapshot cadence and 14-file retention, the shared pool's foreign keys and WAL mode, and that the guard and the SQL plugin's `preload` entry name the same file. Not yet observed in the native app: the first launch with these changes will create the first daily snapshot and switch the existing database to WAL.
