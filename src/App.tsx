@@ -18,6 +18,7 @@ import { BorderBeam } from 'border-beam'
 import { useReducedMotion } from './lib/useReducedMotion'
 import { PromptBar } from './features/intelligence/PromptBar'
 import { AppSwitcher } from './features/ecosystem/AppSwitcher'
+import { usageLabel, type MessageUsage } from './features/intelligence/usage'
 import type { LaunchFeedback } from './features/browsers/types'
 import { errorMessage, getDatabase } from './lib/database'
 import './phase2.css'
@@ -33,7 +34,7 @@ import { SettingsPage } from './features/settings/SettingsPage'
 type AssistantSlot = 'primary' | 'secondary'
 interface AssistantConfig { slot: AssistantSlot; provider: string; baseUrl: string; model: string; hasApiKey: boolean }
 interface AssistantConversation { id: string; title: string; updatedAt: string }
-interface AssistantMessage { id: string; role: string; responseKind: string; requestStatus: string | null; content: string; provider: string | null; model: string | null; createdAt: string }
+interface AssistantMessage extends MessageUsage { id: string; role: string; responseKind: string; requestStatus: string | null; content: string; provider: string | null; model: string | null; createdAt: string }
 interface AssistantProposal { assistantMessageId: string; status: string }
 
 const navGroups: { title: string; items: { label: string; icon: LucideIcon; disabled?: boolean }[] }[] = [
@@ -308,7 +309,7 @@ function GlobalAssistant({ activeSection, open, onOpenChange, onOpenFull, voiceN
       <div className="global-assistant-messages" aria-live="polite">
         {!conversationId && !error && <p className="global-assistant-empty">Loading your saved conversation…</p>}
         {messages.map(message => <article key={message.id} className={`global-assistant-message ${message.role}`}>
-          <div className="global-assistant-message-meta"><span>{message.role === 'user' ? 'YOU' : message.responseKind === 'live_ai' ? 'LEVI · LIVE AI' : message.responseKind.replaceAll('_', ' ')}</span>{message.model && <small>{message.model}</small>}</div>
+          <div className="global-assistant-message-meta"><span>{message.role === 'user' ? 'YOU' : message.responseKind === 'live_ai' ? 'LEVI · LIVE AI' : message.responseKind.replaceAll('_', ' ')}</span>{message.model && <small>{message.model}</small>}{usageLabel(message) && <small title="Reported by the provider">{usageLabel(message)}</small>}</div>
           {thought?.assistantMessageId===message.id&&<ThoughtLine status={thought.status} startedAt={thought.startedAt} finishedAt={thought.finishedAt} activity={thought.activity} reducedMotion={reducedMotion}/>}<Suspense fallback={<p>Rendering response…</p>}><MarkdownMessage content={message.content}/></Suspense>
           {message.role === 'assistant' && message.responseKind === 'live_ai' && <button type="button" className="global-assistant-speak" onClick={() => speak(message)}><Volume2 size={13}/> Speak locally</button>}
         </article>)}

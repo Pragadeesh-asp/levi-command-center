@@ -81,6 +81,12 @@ fn main() {
             sql: include_str!("../migrations/009_ai_actions.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 10,
+            description: "ai_request_usage_and_tool_mode",
+            sql: include_str!("../migrations/010_ai_usage.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     let latest_migration = migrations.iter().map(|m| m.version).max().unwrap_or(0);
     let database_url = format!("sqlite:{}", db::DATABASE_FILE);
