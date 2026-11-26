@@ -1,28 +1,31 @@
 :root {
-  --levi-gunmetal: #1C2126;
-  --levi-lunar: #F4F4F0;
-  --levi-lime: #C7F000;
-  --levi-danger: #E5817C;
-  /* Official LEVI accents */
+  /* Carbon & Ice Blue: about 60% carbon, 30% graphite, 10% ice blue. */
+  --levi-gunmetal: #0E0F10;
+  --levi-lunar: #E8E6E1;
+  /* Kept for existing references: the single accent is now ice blue. */
+  --levi-lime: #8CC4FF;
+  --levi-danger: #F06A6A;
   --levi-black: var(--levi-gunmetal);
-  --levi-navy: var(--levi-lime);
-  --levi-crimson: var(--levi-lime);
-
-  /* Tonal surfaces keep the black foundation dominant and make navy legible. */
-  --levi-surface-0: #1C2126;
-  --levi-surface-1: #23292F;
-  --levi-surface-2: #2B3238;
-  --levi-surface-3: #343C42;
-  --levi-surface-4: #3D464C;
-  --levi-blue-soft: #D6F04A;
-  --levi-blue-border: #C7F00080;
-  --levi-crimson-soft: #D8F43B;
-  --levi-crimson-wash: #C7F0001F;
+  --levi-navy: #8CC4FF;
+  --levi-crimson: #8CC4FF;
+  /* Carbon for the frame, graphite for everything raised. */
+  --levi-surface-0: #0E0F10;
+  --levi-surface-1: #141618;
+  --levi-surface-2: #24262A;
+  --levi-surface-3: #2C2F34;
+  --levi-surface-4: #35383E;
+  --levi-blue-soft: #A9D3FF;
+  --levi-blue-border: #8CC4FF66;
+  --levi-crimson-soft: #A9D3FF;
+  --levi-crimson-wash: #8CC4FF1A;
   --levi-text-primary: var(--levi-lunar);
-  --levi-text-secondary: #D0D2CC;
-  --levi-text-muted: #A8ADA8;
-  --levi-border-subtle: #F4F4F01C;
-  --levi-border-strong: #C7F00068;
+  --levi-text-secondary: #B9BBBF;
+  --levi-text-muted: #8A8C90;
+  --levi-border-subtle: #FFFFFF10;
+  --levi-border-strong: #8CC4FF55;
+  --levi-carbon: #0A0B0C;
+  --levi-carbon-weave: repeating-linear-gradient(45deg, #FFFFFF05 0 2px, transparent 2px 6px), repeating-linear-gradient(-45deg, #00000040 0 2px, transparent 2px 6px);
+  --levi-font-display: "Bahnschrift", "Archivo Narrow", "Arial Narrow", sans-serif;
 
   --levi-space-1: 4px;
   --levi-space-2: 8px;
@@ -46,14 +49,14 @@
   --levi-motion-fast: 190ms;
   --levi-motion-normal: 220ms;
   --levi-ease-standard: cubic-bezier(.2, .75, .25, 1);
-  --levi-focus-ring: 0 0 0 3px #C7F00038;
+  --levi-focus-ring: 0 0 0 3px #8CC4FF40;
 
   /* Semantic roles shared by the desktop applications. */
   --levi-background-app: var(--levi-surface-0);
   --levi-background-chrome: var(--levi-surface-1);
   --levi-surface-raised: var(--levi-surface-2);
   --levi-surface-overlay: var(--levi-surface-3);
-  --levi-text-on-accent: var(--levi-gunmetal);
+  --levi-text-on-accent: #07121F;
   --levi-text-disabled: #737A78;
   --levi-border-default: var(--levi-border-subtle);
   --levi-border-focus: var(--levi-blue-soft);
@@ -62,12 +65,12 @@
   --levi-button-primary-foreground: var(--levi-text-on-accent);
   --levi-button-primary-hover: var(--levi-crimson-soft);
   --levi-button-accent-background: var(--levi-navy);
-  --levi-button-accent-foreground: var(--levi-text-on-accent);
+  --levi-button-accent-foreground: #07121F;
   --levi-button-accent-hover: var(--levi-surface-4);
   --levi-button-secondary-background: var(--levi-surface-2);
   --levi-button-secondary-foreground: var(--levi-text-primary);
   --levi-button-secondary-hover: var(--levi-surface-3);
-  --levi-status-success: #A6CF58;
+  --levi-status-success: #7FD1A8;
   --levi-status-info: var(--levi-blue-soft);
   --levi-status-warning: #E3C36B;
   --levi-status-danger: var(--levi-danger);

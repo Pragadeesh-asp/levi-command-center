@@ -27,6 +27,7 @@ import './levi-theme.css'
 import './global-assistant.css'
 import './effects.css'
 import './desktop-overhaul.css'
+import './levi-carbon.css'
 
 const MarkdownMessage = lazy(() => import('./features/intelligence/MarkdownMessage'))
 import { VoiceGlowInput } from './features/intelligence/VoiceGlowInput'
@@ -38,14 +39,17 @@ interface AssistantMessage extends MessageUsage { id: string; role: string; resp
 interface AssistantProposal { assistantMessageId: string; status: string }
 
 const navGroups: { title: string; items: { label: string; icon: LucideIcon; disabled?: boolean }[] }[] = [
-  { title: 'OPERATIONS', items: [
-    { label: 'Overview', icon: LayoutDashboard }, { label: 'AI Workforce', icon: UsersRound }, { label: 'Accounts', icon: Users }, { label: 'Browser Profiles', icon: Globe2 },
-    { label: 'Projects', icon: FolderKanban }, { label: 'Tasks', icon: ListTodo }, { label: 'Checkpoint Center', icon: History }, { label: 'Handoff Center', icon: Workflow }, { label: 'Output Vault', icon: Archive },
+  { title: 'WORK', items: [
+    { label: 'Overview', icon: LayoutDashboard }, { label: 'Projects', icon: FolderKanban }, { label: 'Tasks', icon: ListTodo },
   ] },
-  { title: 'INTELLIGENCE', items: [{ label: 'AI Command', icon: MessageSquareText }] },
-  { title: 'CONTROL', items: [
-    { label: 'Calendar', icon: CalendarDays }, { label: 'Reminders', icon: Bell }, { label: 'Activity', icon: Activity },
-    { label: 'Analytics', icon: Activity }, { label: 'Settings', icon: Settings },
+  { title: 'AI', items: [
+    { label: 'AI Command', icon: MessageSquareText }, { label: 'AI Workforce', icon: UsersRound }, { label: 'Checkpoint Center', icon: History },
+    { label: 'Handoff Center', icon: Workflow }, { label: 'Output Vault', icon: Archive },
+  ] },
+  { title: 'ACCOUNTS', items: [{ label: 'Accounts', icon: Users }, { label: 'Browser Profiles', icon: Globe2 }] },
+  { title: 'TIME', items: [{ label: 'Calendar', icon: CalendarDays }, { label: 'Reminders', icon: Bell }] },
+  { title: 'INSIGHT', items: [
+    { label: 'Activity', icon: Activity }, { label: 'Analytics', icon: Activity }, { label: 'Settings', icon: Settings },
   ] },
 ]
 interface Summary { accounts: number; projects: number; tasks: number; overdue: number }

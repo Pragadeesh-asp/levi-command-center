@@ -30,7 +30,7 @@ export function SettingsPage({ voiceName, speechRate, onVoiceChange, onSpeechRat
     <div className="settings-grid">
       <section className="panel settings-card">
         <div className="settings-card-title"><span className="settings-icon"><Check size={17}/></span><div><h2>Appearance</h2><p>Current LEVI desktop palette</p></div></div>
-        <div className="settings-palette"><span><i className="swatch-gunmetal"/>Gunmetal Black</span><span><i className="swatch-lunar"/>Lunar White</span><span><i className="swatch-lime"/>Neon Lime</span></div>
+        <div className="settings-palette"><span><i className="swatch-gunmetal"/>Carbon</span><span><i className="swatch-red"/>Graphite</span><span><i className="swatch-blue"/>Ice Blue</span></div>
         <small>Theme switching is not currently available.</small>
       </section>
 

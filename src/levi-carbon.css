@@ -1,0 +1,43 @@
+/* Carbon & Ice Blue finish. Loaded last.
+   About 60% carbon (frame and background), 30% graphite (everything raised),
+   10% ice blue (the current section, what needs you, the main action). Flat: no gradients, no glow. */
+
+body, .app-shell { background-color: var(--levi-gunmetal); background-image: var(--levi-carbon-weave); }
+.sidebar { background: var(--levi-carbon); border-right: 1px solid var(--levi-border-subtle); }
+.topbar { background: #0E0F10F2; border-bottom: 1px solid var(--levi-border-subtle); }
+
+/* Condensed uppercase headings read like equipment labels. */
+h1, h2, .brand, .nav-caption, .metric-value {
+  font-family: var(--levi-font-display);
+  font-stretch: condensed;
+}
+h1, h2 { text-transform: uppercase; letter-spacing: .03em; font-weight: 600; }
+.nav-caption { color: var(--levi-text-muted); letter-spacing: .14em; }
+.metric-value { letter-spacing: .01em; }
+
+/* The current section: graphite with an ice edge. */
+.nav-item.selected { color: var(--levi-text-primary); background: var(--levi-surface-2); box-shadow: inset 2px 0 0 var(--levi-crimson); }
+.nav-item.selected svg { color: var(--levi-crimson); }
+
+.brand-mark { color: var(--levi-crimson); background: transparent; border: 1px solid var(--levi-crimson); box-shadow: none; }
+.brand-mark span { color: var(--levi-crimson); }
+.workspace-avatar, .avatar { color: var(--levi-text-primary); background: var(--levi-surface-3); border-color: var(--levi-border-subtle); }
+
+/* The main action is flat ice blue with dark text. */
+.button-primary, .button-open, .quick-add, .button-create, .button-save {
+  color: var(--levi-text-on-accent);
+  background: var(--levi-crimson);
+  border: 1px solid var(--levi-crimson);
+  box-shadow: none;
+}
+.button-primary:hover:not(:disabled), .button-open:hover:not(:disabled), .quick-add:hover:not(:disabled), .button-create:hover:not(:disabled), .button-save:hover:not(:disabled) { background: var(--levi-crimson-soft); border-color: var(--levi-crimson-soft); }
+
+/* JARVIS sits on graphite; only its send button uses the accent. */
+.global-assistant-launcher { color: var(--levi-text-primary); background: var(--levi-surface-2); border: 1px solid var(--levi-border-strong); box-shadow: var(--levi-elevation-2); }
+.global-assistant-composer>button { color: var(--levi-text-on-accent); background: var(--levi-crimson); border-color: var(--levi-crimson); box-shadow: none; }
+.global-assistant-composer>button:hover:not(:disabled) { background: var(--levi-crimson-soft); }
+.global-assistant-message.user, .ai-message.user { color: var(--levi-text-primary); background: var(--levi-surface-3); border-color: var(--levi-border-strong); }
+
+.swatch-gunmetal { background: var(--levi-gunmetal); box-shadow: inset 0 0 0 1px var(--levi-border-subtle); }
+.swatch-red { background: var(--levi-surface-2); }
+.swatch-blue { background: var(--levi-crimson); }
