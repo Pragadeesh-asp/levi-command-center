@@ -22,6 +22,13 @@ import type { LaunchFeedback } from './features/browsers/types'
 import { errorMessage, getDatabase } from './lib/database'
 import { BottomSheet, type SheetSize } from './features/shell/BottomSheet'
 import { ConfirmHost } from './features/shell/ConfirmHost'
+import { SeatMeter } from './features/accounts/SeatMeter'
+import { NotificationBell } from './features/shell/NotificationBell'
+import { CommandPalette } from './features/shell/CommandPalette'
+import { navigateWithTransition, useIndicator } from './features/shell/motion'
+import { AnimatedNumber } from './features/shell/AnimatedNumber'
+import { ActivityPage } from './features/insights/ActivityPage'
+import { AnalyticsPage } from './features/insights/AnalyticsPage'
 import './phase2.css'
 import './App.css'
 import './levi-theme.css'
@@ -57,7 +64,7 @@ interface Summary { accounts: number; projects: number; tasks: number; overdue: 
 interface QuickAccount { id: string; name: string; profile_name: string; browser_name: string }
 interface TaskPreview { id: string; title: string; priority: number; status: string; project_name: string | null; deadline: string | null }
 
-function Overview({ db, onAccounts, query, onQuery, onNavigate }: { db: Database; onAccounts: () => void; query: string; onQuery: (value: string) => void; onNavigate: (section: string) => void }) {
+function Overview({ db, onAccounts, query, onQuery, onNavigate }: { db: Database; onAccounts: () => void; query: string; onQuery: (value: string) => void; onNavigate: (section: string, from?: HTMLElement | null) => void }) {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [quickAccounts, setQuickAccounts] = useState<QuickAccount[]>([])
   const [priorityTasks, setPriorityTasks] = useState<TaskPreview[]>([])
@@ -96,7 +103,8 @@ function Overview({ db, onAccounts, query, onQuery, onNavigate }: { db: Database
     <div className="content"><div className="page-heading"><div><div className="eyebrow"><span className="live-pulse"/> YOUR OPERATIONS, AT A GLANCE</div><h1>Good afternoon<span className="heading-period">.</span></h1><p className="subtitle">Your Personal AI Operations Headquarters.</p></div><div className="heading-actions"><button className="button-secondary"><CalendarDays size={15}/> Today <ChevronDown size={14}/></button><button className="button-primary" onClick={onAccounts}><Plus size={16}/> Add account</button></div></div>
       <DashboardSearch db={db} query={query} onQuery={onQuery} onNavigate={onNavigate}/>
       {launchNotice && <div className="inline-notice">{launchNotice}</div>}{launchError && <div className="inline-error" role="alert">{launchError}</div>}
-      <section className="metrics-grid">{cards.map(({label,value,detail,icon:Icon,tone,target})=><button type="button" className="metric-card levi-spoke" key={label} onClick={() => onNavigate(target)} title={`Open ${target}`}><div className="metric-top"><span>{label}</span><div className={`metric-icon ${tone}`}><Icon size={16}/></div></div><div className="metric-value">{value ?? '—'}</div><div className="metric-detail">{detail}</div><div className={`metric-trend ${tone}`}><ArrowDownRight size={13}/>{summary ? `Open ${target}` : 'Loading records…'}<ArrowUpRight size={13}/></div></button>)}</section>
+      <SeatMeter db={db} onOpenAccounts={onAccounts}/>
+      <section className="metrics-grid">{cards.map(({label,value,detail,icon:Icon,tone,target})=><button type="button" className="metric-card levi-spoke" key={label} onClick={event => onNavigate(target, event.currentTarget)} title={`Open ${target}`}><div className="metric-top"><span>{label}</span><div className={`metric-icon ${tone}`}><Icon size={16}/></div></div><div className="metric-value">{summary ? <AnimatedNumber value={value}/> : <span className="skeleton metric-skeleton"/>}</div><div className="metric-detail">{detail}</div><div className={`metric-trend ${tone}`}><ArrowDownRight size={13}/>{summary ? `Open ${target}` : 'Loading records…'}<ArrowUpRight size={13}/></div></button>)}</section>
       <section className="overview-grid"><article className="panel activity-panel"><div className="panel-heading"><div><h2>Account activity</h2><p>Recorded account events from your workspace</p></div><button className="text-button" onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'Activity' }))}>View activity <ArrowUpRight size={14}/></button></div><div className="chart-placeholder"><div className="chart-y"><span>10</span><span>8</span><span>6</span><span>4</span><span>2</span><span>0</span></div><div className="chart-area"><div className="chart-empty"><div className="chart-orb"><Activity size={20}/></div><strong>Activity timeline is coming in a later phase</strong><span>Browser presence alone does not indicate that a Claude account is working.</span></div><div className="chart-x"><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span><span>SUN</span></div></div></div><div className="chart-legend"><span><i className="legend-dot cyan-dot"/> Working</span><span><i className="legend-dot blue-dot"/> Waiting</span><span><i className="legend-dot grey-dot"/> Idle</span><span className="chart-period">LOCAL HISTORY</span></div></article>
         <article className="panel quick-panel"><div className="panel-heading"><div><h2>Quick launch</h2><p>Open an account in its assigned profile</p></div><Zap size={16} className="quick-zap"/></div>{quickAccounts.length ? <div className="quick-account-list">{quickAccounts.map(account => <div className="quick-account-row" key={account.id}><div><strong>{account.name}</strong><span>{account.browser_name} · {account.profile_name}</span></div><button className="button-open" onClick={() => void launch(account.id, account.name)}>OPEN</button></div>)}</div> : <div className="quick-empty"><div className="quick-icon"><Users size={19}/></div><strong>No accounts registered</strong><span>Add browser profiles, then assign accounts to them.</span><button className="quick-add" onClick={onAccounts}><Plus size={14}/> Register account</button></div>}<div className="quick-foot"><span>ACCOUNT REGISTRY</span><span>{quickAccounts.length ? `${quickAccounts.length} RECENT` : 'READY WHEN YOU ARE'}</span></div></article></section>
       <section className="bottom-grid"><article className="panel list-panel overview-list-panel"><div className="panel-heading"><div><h2>Priority tasks</h2><p>Open work ordered by priority and deadline</p></div><button className="text-button" onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'Tasks' }))}>Open queue <ArrowUpRight size={14}/></button></div>{priorityTasks.length ? priorityTasks.map(task => <button className="overview-task-row" key={task.id} onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'Tasks' }))}><span className={`work-status ${task.status}`}>{task.status.replaceAll('_', ' ')}</span><strong>{task.title}</strong><small>P{task.priority}{task.project_name ? ` · ${task.project_name}` : ''}</small></button>) : <div className="list-empty"><div className="empty-check"><Check size={16}/></div><div><strong>No open tasks</strong><span>Create tasks in the Task Queue.</span></div></div>}</article><article className="panel list-panel overview-list-panel"><div className="panel-heading"><div><h2>Upcoming deadlines</h2><p>From active task records</p></div></div>{upcomingDeadlines.length ? upcomingDeadlines.map(task => <button className="overview-task-row" key={task.id} onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'Tasks' }))}><span className="deadline-date">{task.deadline}</span><strong>{task.title}</strong><small>{task.project_name || 'No project'}</small></button>) : <div className="list-empty"><div className="empty-calendar"><CalendarDays size={16}/></div><div><strong>No upcoming deadlines</strong><span>Task deadlines recorded in the database will appear here.</span></div></div>}</article></section>
@@ -113,6 +121,9 @@ function App() {
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [history, setHistory] = useState<string[]>([])
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [toast, setToast] = useState('')
+  useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(''), 3500); return () => window.clearTimeout(timer) }, [toast])
   const [assistantSize, setAssistantSize] = useState<SheetSize>('half')
   const activeRef = useRef('Overview')
   const swipe = useRef<{ x: number; y: number; edge: boolean } | null>(null)
@@ -148,8 +159,7 @@ function App() {
     const handler = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
-        window.dispatchEvent(new CustomEvent('navigate', { detail: 'Overview' }))
-        requestAnimationFrame(() => document.getElementById('global-record-search')?.focus())
+        setPaletteOpen(value => !value)
       }
     }
     window.addEventListener('keydown', handler)
@@ -172,13 +182,12 @@ function App() {
   }, [])
   /* Navigation: every move to another section is recorded, so Back (Alt+Left, the mouse
      back button or a swipe from the left edge) returns along the same path. */
-  const goTo = (label: string) => {
+  const goTo = (label: string, from?: HTMLElement | null) => {
     setSidebarOpen(false)
     const previous = activeRef.current
     if (previous === label) return
     activeRef.current = label
-    setHistory(stack => [...stack.slice(-29), previous])
-    setActive(label)
+    navigateWithTransition(() => { setHistory(stack => [...stack.slice(-29), previous]); setActive(label) }, from)
   }
   const back = () => {
     setSidebarOpen(false)
@@ -243,6 +252,10 @@ function App() {
   }
 
   const GroupIcon = group.icon
+  const topTabsRow = useRef<HTMLDivElement>(null)
+  const tabBarRow = useRef<HTMLElement>(null)
+  const topIndicator = useIndicator(topTabsRow, active)
+  const barIndicator = useIndicator(tabBarRow, groupIndex)
   return <div className={`app-shell levi-nav-shell ${sidebarOpen ? 'sidebar-open' : ''}`}>
     {sidebarOpen && <button type="button" className="sidebar-scrim" aria-label="Close navigation" onClick={() => setSidebarOpen(false)}/>}
     <aside className="sidebar levi-drawer" aria-label="All sections" aria-hidden={!sidebarOpen} inert={!sidebarOpen}>
@@ -257,16 +270,18 @@ function App() {
         <button type="button" className="navigation-toggle" aria-label={sidebarOpen ? 'Close all sections' : 'Open all sections'} title="All sections (Ctrl+M)" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(value => !value)}>{sidebarOpen ? <X size={19}/> : <Menu size={19}/>}</button>
         {history.length > 0 && <button type="button" className="levi-back" onClick={back} aria-label={`Back to ${history[history.length - 1]}`} title={`Back to ${history[history.length - 1]} (Alt+Left)`}><ChevronLeft size={18}/></button>}
         <nav className="breadcrumb levi-crumbs" aria-label="You are here"><button type="button" onClick={() => goTo(group.items[0].label)}><GroupIcon size={14}/>{group.title}</button><span>/</span><strong>{active}</strong></nav>
-        <div className="top-actions"><label className="searchbox"><Search size={15}/><input id="global-record-search" value={query} onFocus={() => { if (active !== 'Overview') goTo('Overview') }} onChange={e => setQuery(e.target.value)} placeholder="Search anything in LEVI…"/><kbd>Ctrl K</kbd></label><AppSwitcher /><button type="button" className={`levi-jarvis-button ${assistantOpen ? 'is-open' : ''}`} onClick={() => setAssistantOpen(value => !value)} aria-expanded={assistantOpen} aria-controls="global-assistant-panel" title="JARVIS (Alt+Shift+L)"><Bot size={16}/><span>JARVIS</span><kbd>Alt⇧L</kbd></button><div className="avatar">L</div></div>
+        <div className="top-actions"><button type="button" className="searchbox palette-trigger" onClick={() => setPaletteOpen(true)} aria-label="Search or jump (Ctrl+K)"><Search size={15}/><span>Search or jump to…</span><kbd>Ctrl K</kbd></button><AppSwitcher /><NotificationBell db={db} onNavigate={goTo}/><button type="button" className={`levi-jarvis-button ${assistantOpen ? 'is-open' : ''}`} onClick={() => setAssistantOpen(value => !value)} aria-expanded={assistantOpen} aria-controls="global-assistant-panel" title="JARVIS (Alt+Shift+L)"><Bot size={16}/><span>JARVIS</span><kbd>Alt⇧L</kbd></button><div className="avatar">L</div></div>
       </header>
-      {group.items.length > 1 && <div className="levi-toptabs" role="tablist" aria-label={`${group.title} sections`}>{group.items.map(({label, icon: Icon, disabled}) => <button key={label} type="button" role="tab" aria-selected={active === label} disabled={disabled} className={active === label ? 'is-on' : ''} onClick={() => goTo(label)}><Icon size={14}/>{label}</button>)}</div>}
+      {group.items.length > 1 && <div ref={topTabsRow} className="levi-toptabs" role="tablist" aria-label={`${group.title} sections`}><span className="tab-indicator" style={topIndicator} aria-hidden="true"/>{group.items.map(({label, icon: Icon, disabled}) => <button key={label} type="button" role="tab" aria-selected={active === label} disabled={disabled} className={active === label ? 'is-on' : ''} onClick={() => goTo(label)}><Icon size={14}/>{label}</button>)}</div>}
       <div className="workspace-scroll" onPointerDown={pointerDown} onPointerUp={pointerUp} onPointerCancel={() => { swipe.current = null }} onWheel={wheelSwipe}>
-      {dbError ? <div className="database-error"><AlertCircle size={18}/><div><strong>Local database could not be opened</strong><span>{dbError}</span></div></div> : !db ? <div className="database-loading">Opening local workspace…</div> : active === 'Overview' ? <Overview db={db} onAccounts={() => goTo('Accounts')} query={query} onQuery={setQuery} onNavigate={goTo}/> : active === 'AI Workforce' ? <WorkforceCenter db={db}/> : active === 'Accounts' ? <AccountsPage db={db}/> : active === 'Browser Profiles' ? <BrowserProfilesPage db={db}/> : active === 'Projects' ? <ProjectsPage db={db}/> : active === 'Tasks' ? <TasksPage db={db}/> : active === 'Checkpoint Center' ? <CheckpointCenter db={db}/> : active === 'Handoff Center' ? <HandoffCenter db={db}/> : active === 'AI Command' ? <IntelligenceCenter db={db}/> : active === 'Settings' ? <SettingsPage voiceName={voiceName} speechRate={speechRate} onVoiceChange={setVoiceName} onSpeechRateChange={setSpeechRate} onOpenAiSettings={() => goTo('AI Command')}/> : active === 'Reminders' ? <RemindersPage db={db}/> : <div className="content"><div className="future-page"><span className="eyebrow">PLANNED CAPABILITY</span><h1>{active}</h1><p>This area is reserved for a later roadmap phase. No simulated data or functionality is shown here.</p></div></div>}
+      {dbError ? <div className="database-error"><AlertCircle size={18}/><div><strong>Local database could not be opened</strong><span>{dbError}</span></div></div> : !db ? <div className="database-loading">Opening local workspace…</div> : active === 'Overview' ? <Overview db={db} onAccounts={() => goTo('Accounts')} query={query} onQuery={setQuery} onNavigate={goTo}/> : active === 'AI Workforce' ? <WorkforceCenter db={db}/> : active === 'Accounts' ? <AccountsPage db={db}/> : active === 'Browser Profiles' ? <BrowserProfilesPage db={db}/> : active === 'Projects' ? <ProjectsPage db={db}/> : active === 'Tasks' ? <TasksPage db={db}/> : active === 'Checkpoint Center' ? <CheckpointCenter db={db}/> : active === 'Handoff Center' ? <HandoffCenter db={db}/> : active === 'AI Command' ? <IntelligenceCenter db={db}/> : active === 'Settings' ? <SettingsPage voiceName={voiceName} speechRate={speechRate} onVoiceChange={setVoiceName} onSpeechRateChange={setSpeechRate} onOpenAiSettings={() => goTo('AI Command')}/> : active === 'Reminders' ? <RemindersPage db={db}/> : active === 'Activity' ? <ActivityPage db={db}/> : active === 'Analytics' ? <AnalyticsPage db={db}/> : <div className="content"><div className="future-page"><span className="eyebrow">PLANNED CAPABILITY</span><h1>{active}</h1><p>This area is reserved for a later roadmap phase. No simulated data or functionality is shown here.</p></div></div>}
       </div>
-      <nav className="levi-tabbar" aria-label="Groups">{navGroups.map((navGroup, index) => { const Icon = navGroup.icon; return <button key={navGroup.title} type="button" className={index === groupIndex ? 'is-on' : ''} aria-current={index === groupIndex ? 'page' : undefined} onClick={() => goTo(navGroup.items[0].label)} title={`${navGroup.title} (Alt+${index + 1})`}><Icon size={18}/><span>{navGroup.title}</span></button> })}</nav>
+      <nav ref={tabBarRow} className="levi-tabbar" aria-label="Groups"><span className="tab-indicator" style={barIndicator} aria-hidden="true"/>{navGroups.map((navGroup, index) => { const Icon = navGroup.icon; return <button key={navGroup.title} type="button" className={index === groupIndex ? 'is-on' : ''} aria-current={index === groupIndex ? 'page' : undefined} onClick={() => goTo(navGroup.items[0].label)} title={`${navGroup.title} (Alt+${index + 1})`}><Icon size={18}/><span>{navGroup.title}</span></button> })}</nav>
     </main>
     <GlobalAssistant activeSection={active} open={assistantOpen} size={assistantSize} onSizeChange={setAssistantSize} onOpenChange={setAssistantOpen} onOpenFull={() => { setAssistantOpen(false); goTo('AI Command') }} voiceName={voiceName} speechRate={speechRate}/>
     <ConfirmHost/>
+    {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} db={db} sections={navGroups.flatMap(navGroup => navGroup.items.filter(item => !item.disabled).map(item => ({ label: item.label, group: navGroup.title })))} onNavigate={goTo} onOpenJarvis={() => setAssistantOpen(true)} onToast={setToast}/>}
+    {toast && <div className="levi-shell-toast" role="status">{toast}</div>}
   </div>
 }
 
