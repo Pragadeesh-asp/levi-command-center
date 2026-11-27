@@ -1,0 +1,154 @@
+/* Navigation shell: tab bar, top tabs, all-sections menu, Back, bottom sheets.
+   Loaded last, after levi-carbon.css. */
+
+/* ---------- Shell layout ---------- */
+.levi-nav-shell .main-area { margin-right: 0 !important; }
+.levi-nav-shell .workspace-scroll { touch-action: pan-y; }
+
+/* ---------- Top bar ---------- */
+.levi-nav-shell .topbar { display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 16px; }
+.levi-nav-shell .top-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.levi-nav-shell .searchbox { width: clamp(180px, 24vw, 300px); }
+.levi-back { flex: 0 0 36px; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--levi-border-subtle); border-radius: 8px; background: var(--levi-surface-2); color: var(--levi-text-primary); cursor: pointer; }
+.levi-back:hover { border-color: var(--levi-crimson); }
+.levi-crumbs { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; font-family: var(--levi-font-display); font-stretch: condensed; letter-spacing: .06em; text-transform: uppercase; }
+.levi-crumbs button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 0; color: var(--levi-text-muted); font: inherit; letter-spacing: inherit; cursor: pointer; }
+.levi-crumbs button:hover { color: var(--levi-text-primary); }
+.levi-crumbs span { color: var(--levi-text-muted); opacity: .5; }
+.levi-crumbs strong { color: var(--levi-text-primary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.levi-jarvis-button { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 12px; border: 1px solid var(--levi-border-subtle); border-radius: 8px; background: var(--levi-surface-2); color: var(--levi-text-primary); cursor: pointer; white-space: nowrap; font: 600 12px/1 var(--levi-font-display); letter-spacing: .08em; }
+.levi-jarvis-button svg { color: var(--levi-crimson); }
+.levi-jarvis-button kbd { font: 500 10px/1 ui-monospace, Consolas, monospace; letter-spacing: 0; padding: 3px 5px; border: 1px solid var(--levi-border-subtle); border-radius: 4px; color: var(--levi-text-muted); }
+.levi-jarvis-button:hover, .levi-jarvis-button.is-open { border-color: var(--levi-crimson); }
+
+/* ---------- Top tabs: the sections in the current group ---------- */
+.levi-toptabs { flex: 0 0 auto; display: flex; gap: 2px; padding: 0 16px; border-bottom: 1px solid var(--levi-border-subtle); background: var(--levi-gunmetal); overflow-x: auto; scrollbar-width: none; }
+.levi-toptabs::-webkit-scrollbar { display: none; }
+.levi-toptabs button { display: inline-flex; align-items: center; gap: 7px; padding: 11px 12px 10px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--levi-text-muted); font: 500 13px/1 var(--levi-font, inherit); white-space: nowrap; cursor: pointer; }
+.levi-toptabs button:hover { color: var(--levi-text-primary); }
+.levi-toptabs button.is-on { color: var(--levi-text-primary); border-bottom-color: var(--levi-crimson); }
+.levi-toptabs button.is-on svg { color: var(--levi-crimson); }
+
+/* ---------- Bottom tab bar: the five groups ---------- */
+.levi-tabbar { flex: 0 0 auto; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid var(--levi-border-subtle); background: var(--levi-carbon); }
+.levi-tabbar button { position: relative; display: grid; justify-items: center; gap: 4px; padding: 8px 4px 9px; border: 0; background: none; color: var(--levi-text-muted); cursor: pointer; font: 600 11px/1 var(--levi-font-display); font-stretch: condensed; letter-spacing: .1em; }
+.levi-tabbar button:hover { color: var(--levi-text-primary); }
+.levi-tabbar button.is-on { color: var(--levi-text-primary); }
+.levi-tabbar button.is-on svg { color: var(--levi-crimson); }
+.levi-tabbar button.is-on::before { content: ""; position: absolute; top: -1px; left: 32%; right: 32%; height: 2px; background: var(--levi-crimson); }
+
+/* ---------- All-sections menu (the ☰ drawer): every section visible, no scrolling ---------- */
+.levi-drawer.sidebar { width: min(640px, calc(100vw - 40px)); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 18px; padding: 18px 20px; }
+.levi-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.levi-drawer-head .brand { padding: 0; }
+.levi-drawer-close { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--levi-border-subtle); border-radius: 8px; background: var(--levi-surface-2); color: var(--levi-text-primary); cursor: pointer; }
+.levi-drawer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 18px 20px; align-content: start; overflow-y: auto; }
+.levi-drawer .nav-group { margin: 0; }
+.levi-drawer .nav-caption { display: flex; align-items: center; justify-content: space-between; margin: 0 0 6px; padding: 0 8px; }
+.levi-drawer .nav-caption kbd { font: 500 10px/1 ui-monospace, Consolas, monospace; letter-spacing: 0; color: var(--levi-text-muted); opacity: .7; }
+.levi-drawer .nav-item { height: 32px; padding: 0 8px; gap: 9px; font-size: 13px; }
+.levi-drawer .build-label { margin: 0; }
+
+/* ---------- Hub: Overview tiles open their section ---------- */
+button.metric-card.levi-spoke { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; border: 1px solid var(--levi-border-subtle); }
+button.metric-card.levi-spoke:hover { border-color: var(--levi-border-strong); }
+button.metric-card.levi-spoke:focus-visible { outline: 2px solid var(--levi-crimson); outline-offset: 2px; }
+button.metric-card.levi-spoke .metric-trend { display: inline-flex; align-items: center; gap: 4px; color: var(--levi-text-muted); }
+
+/* ---------- Bottom sheets ---------- */
+.levi-sheet-scrim { position: fixed; inset: 0; z-index: 140; border: 0; padding: 0; background: #000000a6; cursor: default; animation: levi-fade .18s ease; }
+.levi-sheet { position: fixed; z-index: 141; left: 50%; bottom: 0; width: min(920px, 100vw); transform: translateX(-50%); max-height: calc(100vh - 48px); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--levi-surface-1); border: 1px solid var(--levi-border-subtle); border-bottom: 0; border-radius: 14px 14px 0 0; box-shadow: 0 -24px 60px #000000a0; animation: levi-sheet-in .22s cubic-bezier(.2, .75, .25, 1); }
+.levi-sheet.is-dragging { transition: none; }
+.levi-sheet.size-half { height: min(56vh, 620px); }
+.levi-sheet.size-full { height: calc(100vh - 48px); }
+.levi-sheet.size-auto { width: min(560px, 100vw); }
+.levi-sheet-handle { padding: 8px 16px 10px; cursor: grab; touch-action: none; border-bottom: 1px solid var(--levi-border-subtle); }
+.levi-sheet-handle:active { cursor: grabbing; }
+.levi-sheet-grip { display: block; width: 40px; height: 4px; margin: 0 auto 8px; border-radius: 2px; background: #ffffff2e; }
+.levi-sheet-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.levi-sheet-title h2 { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; }
+.levi-sheet-title h2 svg { color: var(--levi-crimson); }
+.levi-sheet-sizes { display: flex; gap: 4px; margin-left: auto; }
+.levi-sheet-sizes button { padding: 4px 9px; border: 1px solid var(--levi-border-subtle); border-radius: 6px; background: var(--levi-surface-2); color: var(--levi-text-muted); font: 500 11px/1 ui-monospace, Consolas, monospace; cursor: pointer; }
+.levi-sheet-sizes button.is-on { color: var(--levi-text-primary); border-color: var(--levi-crimson); }
+.levi-sheet-close { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--levi-border-subtle); border-radius: 7px; background: var(--levi-surface-2); color: var(--levi-text-primary); cursor: pointer; }
+.levi-sheet-title .levi-sheet-sizes + .levi-sheet-close, .levi-sheet-title h2 + .levi-sheet-close { margin-left: auto; }
+.levi-sheet-body { min-height: 0; overflow-y: auto; padding: 14px 16px; }
+.levi-sheet-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--levi-border-subtle); }
+@keyframes levi-sheet-in { from { transform: translate(-50%, 40px); opacity: 0; } }
+@keyframes levi-fade { from { opacity: 0; } }
+
+/* Confirmation sheet */
+.levi-confirm .levi-sheet-body { display: grid; gap: 10px; }
+.levi-confirm-message { margin: 0; color: var(--levi-text-secondary); line-height: 1.55; }
+.levi-confirm-details { margin: 0; padding: 10px 12px 10px 28px; border: 1px solid var(--levi-border-subtle); border-radius: 8px; background: var(--levi-surface-2); color: var(--levi-text-primary); white-space: pre-wrap; }
+.button-danger-solid { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border: 1px solid var(--levi-danger); border-radius: 8px; background: var(--levi-danger); color: #1A0606; font-weight: 600; cursor: pointer; }
+.button-danger-solid:hover { filter: brightness(1.08); }
+.levi-sheet-footer .button-secondary, .levi-sheet-footer .button-primary { height: 34px; padding: 0 14px; border-radius: 8px; font-size: 13px; }
+
+/* ---------- JARVIS in its sheet ---------- */
+.global-assistant-launcher { display: none !important; }
+.jarvis-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--levi-text-muted); font-size: 12px; }
+.jarvis-sheet .levi-sheet-body { display: grid; gap: 12px; align-content: start; }
+.jarvis-sheet .global-assistant-messages { display: grid; gap: 12px; max-height: none; overflow: visible; padding: 0; }
+.jarvis-sheet .global-assistant-message { max-width: 86%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--levi-border-subtle); background: var(--levi-surface-2); }
+.jarvis-sheet .global-assistant-message.user { justify-self: end; background: var(--levi-surface-3); }
+.jarvis-sheet .global-assistant-message-meta { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; font-size: 11px; color: var(--levi-text-muted); }
+.jarvis-sheet .global-assistant-message-meta span { color: var(--levi-crimson); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.jarvis-sheet .global-assistant-approval { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border: 1px solid var(--levi-border-strong); border-radius: 10px; }
+.jarvis-sheet .global-assistant-approval span { flex: 1 1 220px; color: var(--levi-text-secondary); font-size: 12px; }
+.jarvis-footnote { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; color: var(--levi-text-muted); font-size: 11px; }
+.jarvis-sheet .levi-sheet-footer { display: block; }
+.jarvis-sheet .global-assistant-composer { margin: 0; padding: 0; border: 0; background: none; }
+
+/* ---------- Prompt bar (JARVIS and AI Command): one tidy row of controls ---------- */
+.levi-promptbar { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--levi-border-subtle); border-radius: 12px; background: var(--levi-surface-2); }
+.levi-promptbar:focus-within { border-color: var(--levi-crimson); }
+.levi-promptbar textarea { width: 100%; min-height: 24px; max-height: 176px; resize: none; border: 0; outline: 0; background: transparent; color: var(--levi-text-primary); font: 14px/1.5 inherit; }
+.levi-promptbar-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.levi-promptbar-actions { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.levi-promptbar-send { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.levi-promptbar-send small { display: none; }
+.levi-promptbar-send .button-primary { height: 32px; padding: 0 14px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; }
+.promptbar-model { position: relative; display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 260px; }
+.promptbar-model select { appearance: none; min-width: 0; max-width: 220px; height: 30px; padding: 0 24px 0 10px; border: 1px solid var(--levi-border-subtle); border-radius: 8px; background: var(--levi-surface-1); color: var(--levi-text-primary); font-size: 12px; text-overflow: ellipsis; }
+.promptbar-model select + svg { margin-left: -24px; margin-right: 8px; pointer-events: none; color: var(--levi-text-muted); }
+.promptbar-load-models { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--levi-border-subtle); border-radius: 8px; background: var(--levi-surface-1); color: var(--levi-text-secondary); cursor: pointer; }
+.promptbar-load-models:hover:not(:disabled) { color: var(--levi-crimson); border-color: var(--levi-crimson); }
+.is-spinning { animation: levi-spin .9s linear infinite; }
+@keyframes levi-spin { to { transform: rotate(360deg); } }
+.composer-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.composer-chip { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border: 1px solid var(--levi-border-subtle); border-radius: 999px; background: var(--levi-surface-1); color: var(--levi-text-secondary); font-size: 12px; cursor: pointer; }
+.composer-chip:hover { color: var(--levi-text-primary); border-color: var(--levi-border-strong); }
+.composer-chip svg { color: var(--levi-crimson); }
+.promptbar-model-label { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--levi-text-muted); font-size: 12px; }
+
+/* ---------- AI Command layout ---------- */
+/* The conversation list keeps its own height instead of stretching to the chat's. */
+.levi-nav-shell .ai-layout { grid-template-columns: minmax(200px, 250px) minmax(0, 1fr); align-items: start; gap: 14px; min-height: 0; }
+.levi-nav-shell .ai-conversation-list { position: sticky; top: 0; max-height: calc(100vh - 230px); }
+.levi-nav-shell .ai-chat-panel { min-height: 0; }
+.levi-nav-shell .ai-message-list { min-height: 320px; max-height: none; height: calc(100vh - 400px); }
+.levi-nav-shell .ai-composer { background: var(--levi-surface-1); }
+.levi-nav-shell .ai-composer > div { align-items: stretch; }
+.levi-nav-shell .ai-composer small, .levi-nav-shell .ai-settings > summary small, .levi-nav-shell .ai-settings-grid label small { font-size: 11px; }
+.levi-nav-shell .ai-settings-grid label { font-size: 12px; }
+.levi-nav-shell .ai-settings > summary > span:first-child { font-size: 13px; color: var(--levi-text-primary); }
+.levi-nav-shell .ai-settings > summary > span:first-child > svg { color: var(--levi-crimson); }
+.levi-nav-shell .ai-handoff-tool h2 { font-size: 14px; color: var(--levi-text-primary); }
+.levi-nav-shell .ai-handoff-tool p { font-size: 12px; color: var(--levi-text-muted); }
+.levi-nav-shell .ai-handoff-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 950px) {
+  .levi-nav-shell .ai-layout { grid-template-columns: minmax(0, 1fr); }
+  .levi-nav-shell .ai-conversation-list { position: static; max-height: 180px; }
+  .levi-nav-shell .ai-message-list { height: auto; max-height: 55vh; }
+}
+
+@media (max-width: 900px) {
+  .levi-nav-shell .searchbox { display: none; }
+  .levi-jarvis-button span, .levi-jarvis-button kbd { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .levi-sheet, .levi-sheet-scrim { animation: none; }
+  .is-spinning { animation: none; }
+}

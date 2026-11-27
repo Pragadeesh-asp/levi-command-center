@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { invoke } from '@tauri-apps/api/core'
 import type Database from '@tauri-apps/plugin-sql'
 import { Archive, Pencil, Plus, Search, X } from 'lucide-react'
+import { confirmAction } from '../shell/confirm'
 import { errorMessage, newId } from '../../lib/database'
 import { SpringCheck } from './SpringCheck'
 import { MagicBentoCard } from './MagicBentoCard'
@@ -88,7 +89,7 @@ export function TasksPage({ db }: { db: Database }) {
     } catch (e) { setError(errorMessage(e)) } finally { setBusy(false) }
   }
   async function archive(task: Task) {
-    if (!window.confirm(`Archive “${task.title}”? Its history will be preserved.`)) return
+    if (!(await confirmAction({ title: `Archive “${task.title}”?`, message: 'The task moves to the archive. Its history is kept.', confirmLabel: 'Archive task' }))) return
     setError(''); setNotice('')
     try { await invoke('archive_task', { taskId: task.id }); setNotice('Task archived.'); await reload() }
     catch (e) { setError(errorMessage(e)) }
@@ -113,7 +114,7 @@ export function TasksPage({ db }: { db: Database }) {
   async function setAuto(value: boolean) { setError(''); try { await invoke('set_auto_assignment', { enabled: value }); setAutoAssign(value); setNotice(value ? 'Automatic assignment enabled. The queue checks every 10 seconds while this screen is open.' : 'Automatic assignment disabled.') } catch (e) { setError(errorMessage(e)) } }
   async function assignNext() { setError(''); setAssigning('next'); try { const result = await invoke<{taskTitle:string;accountName:string}|null>('assign_next_eligible'); setNotice(result ? `Assigned “${result.taskTitle}” to ${result.accountName}. Assignment is recorded; work has not been started.` : 'No eligible Ready task and available worker were found.'); await reload() } catch (e) { setError(errorMessage(e)) } finally { setAssigning('') } }
   async function assign(task: Task) { const accountId = workerChoice[task.id]; if (!accountId) return; setError(''); setAssigning(task.id); try { const result = await invoke<{taskTitle:string;accountName:string}>('assign_task', { taskId: task.id, accountId }); setNotice(`Assigned “${result.taskTitle}” to ${result.accountName}. Work has not been started.`); await reload() } catch (e) { setError(errorMessage(e)) } finally { setAssigning('') } }
-  async function release(task: Task) { if (!window.confirm(`Release “${task.title}” from its worker? Its active file claims will be released and the task returned to Ready.`)) return; setError(''); try { await invoke('release_task_assignment', { taskId: task.id }); setNotice('Assignment and file claims released.'); await reload() } catch (e) { setError(errorMessage(e)) } }
+  async function release(task: Task) { if (!(await confirmAction({ title: `Release “${task.title}”?`, message: 'The task leaves its worker, its active file claims are released, and it goes back to Ready.', confirmLabel: 'Release task' }))) return; setError(''); try { await invoke('release_task_assignment', { taskId: task.id }); setNotice('Assignment and file claims released.'); await reload() } catch (e) { setError(errorMessage(e)) } }
   return <div className="feature-page workforce-page">
     <div className="feature-header"><div><div className="eyebrow">OPERATIONS / TASKS</div><h1>Task queue</h1><p>Assignment is recorded only after Rust validates and commits it. Assignment does not mean work has started.</p></div><div className="queue-header-actions"><label className="auto-assignment-toggle"><input type="checkbox" checked={autoAssign} onChange={e => void setAuto(e.target.checked)}/> Automatic assignment</label><button className="button-secondary" disabled={assigning==='next'} onClick={() => void assignNext()}>{assigning==='next' ? 'Checking…' : 'Assign next eligible'}</button><button className="button-primary" onClick={create}><Plus size={16}/> New task</button></div></div>
     {notice && <div className="inline-notice" role="status">{notice}</div>}{error && !editor && <div className="inline-error" role="alert">{error}</div>}

@@ -1,5 +1,5 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react'
-import { ChevronDown, Send, Square } from 'lucide-react'
+import { ChevronDown, RefreshCw, Send, Square } from 'lucide-react'
 
 export interface PromptModelOption { id: string; label: string }
 
@@ -41,10 +41,13 @@ export function PromptBar({ id, value, placeholder, disabled, busy, canSend, mod
     <textarea ref={input} id={id} value={value} onChange={event => { onChange(event.target.value); resize() }} onInput={resize} onKeyDown={keyDown} maxLength={12000} rows={1} placeholder={placeholder} aria-label="Message LEVI" disabled={disabled}/>
     <div className="levi-promptbar-footer">
       <div className="levi-promptbar-actions">{children}
-        {!simple && (onModelChange ? <div className="promptbar-model"><label><span>Model</span><select value={model} onChange={event => onModelChange(event.target.value)} disabled={disabled || models.length<2} aria-label="Available provider model">{models.map(option => <option value={option.id} key={option.id}>{option.label}</option>)}</select><ChevronDown size={12}/></label>{onLoadModels&&<button type="button" className="promptbar-load-models" onClick={onLoadModels} disabled={disabled||loadingModels}>{loadingModels?'Loading…':'Load'}</button>}</div> : <span className="promptbar-model-label" title="Change provider model in AI Command settings">{model || 'Model not configured'}</span>)}
-        {!simple && <label className="promptbar-effort" title="Effort controls are unavailable because the configured providers expose no supported effort parameter."><span>Effort</span><select disabled aria-label="Thinking effort unavailable"><option>Provider default</option></select></label>}
+        {!simple && (onModelChange ? <div className="promptbar-model">
+          <select value={model} onChange={event => onModelChange(event.target.value)} disabled={disabled || models.length<2} aria-label="Model" title={models.length<2 ? 'Load the model list to choose another model' : 'Model for this message'}>{models.map(option => <option value={option.id} key={option.id}>{option.label}</option>)}</select>
+          <ChevronDown size={12} aria-hidden="true"/>
+          {onLoadModels&&<button type="button" className="promptbar-load-models" onClick={onLoadModels} disabled={disabled||loadingModels} aria-label="Load the model list" title="Load the model list from the provider"><RefreshCw size={13} className={loadingModels ? 'is-spinning' : ''}/></button>}
+        </div> : <span className="promptbar-model-label" title="Change the model in AI Command settings">{model || 'No model set'}</span>)}
       </div>
-      <div className="levi-promptbar-send"><small>{helper}</small>{busy && onStop ? <button type="button" className="button-primary promptbar-stop" onClick={onStop} aria-label="Stop generation"><Square size={13} fill="currentColor"/>Stop</button> : <button type="submit" className="button-primary" disabled={!canSend} aria-label="Send message to LEVI"><Send size={14}/>Send</button>}</div>
+      <div className="levi-promptbar-send">{busy && onStop ? <button type="button" className="button-primary promptbar-stop" onClick={onStop} aria-label="Stop generating"><Square size={13} fill="currentColor"/>Stop</button> : <button type="submit" className="button-primary" disabled={!canSend} aria-label="Send" title={helper}><Send size={14}/>Send</button>}</div>
     </div>
   </div>
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type Database from '@tauri-apps/plugin-sql'
 import { Archive, Pencil, Plus, X } from 'lucide-react'
+import { confirmAction } from '../shell/confirm'
 import { errorMessage, newId } from '../../lib/database'
 import { MagicBentoCard } from './MagicBentoCard'
 import './workforce.css'
@@ -45,7 +46,7 @@ export function ProjectsPage({ db }: { db: Database }) {
     } catch (e) { setError(errorMessage(e)) } finally { setBusy(false) }
   }
   async function archive(project: Project) {
-    if (!window.confirm(`Archive “${project.name}”? Its tasks and history will be preserved.`)) return
+    if (!(await confirmAction({ title: `Archive “${project.name}”?`, message: 'The project moves to the archive. Its tasks and history are kept.', confirmLabel: 'Archive project' }))) return
     setError(''); setNotice('')
     try { await invoke('archive_project', { projectId: project.id }); setNotice('Project archived.'); await reload() }
     catch (e) { setError(errorMessage(e)) }

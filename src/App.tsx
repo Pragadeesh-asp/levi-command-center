@@ -1,7 +1,7 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type Database from '@tauri-apps/plugin-sql'
-import { Activity, AlertCircle, Archive, ArrowDownRight, ArrowUpRight, Bell, Bot, CalendarDays, Check, ChevronDown, CircleHelp, Command, FolderKanban, Globe2, History, LayoutDashboard, ListTodo, Menu, MessageSquareText, Plus, Search, Settings, Sparkles, Square, Users, UsersRound, Volume2, Workflow, X, Zap, type LucideIcon } from 'lucide-react'
+import { Activity, AlertCircle, Archive, ArrowDownRight, ArrowUpRight, Bell, Bot, CalendarDays, Check, ChevronDown, ChevronLeft, Command, FolderKanban, Globe2, History, LayoutDashboard, ListTodo, Menu, MessageSquareText, Plus, Search, Settings, Square, Users, UsersRound, Volume2, Workflow, X, Zap, type LucideIcon } from 'lucide-react'
 import { AccountsPage } from './features/accounts/AccountsPage'
 import { BrowserProfilesPage } from './features/browsers/BrowserProfilesPage'
 import { ProjectsPage } from './features/workforce/ProjectsPage'
@@ -14,13 +14,14 @@ import { IntelligenceCenter } from './features/intelligence/IntelligenceCenter'
 import { ThoughtLine, type ThoughtLineStatus } from './features/intelligence/ThoughtLine'
 import { ComposerActionMenu } from './features/intelligence/ComposerActionMenu'
 import { DashboardSearch } from './features/workforce/DashboardSearch'
-import { BorderBeam } from 'border-beam'
 import { useReducedMotion } from './lib/useReducedMotion'
 import { PromptBar } from './features/intelligence/PromptBar'
 import { AppSwitcher } from './features/ecosystem/AppSwitcher'
 import { usageLabel, type MessageUsage } from './features/intelligence/usage'
 import type { LaunchFeedback } from './features/browsers/types'
 import { errorMessage, getDatabase } from './lib/database'
+import { BottomSheet, type SheetSize } from './features/shell/BottomSheet'
+import { ConfirmHost } from './features/shell/ConfirmHost'
 import './phase2.css'
 import './App.css'
 import './levi-theme.css'
@@ -28,9 +29,9 @@ import './global-assistant.css'
 import './effects.css'
 import './desktop-overhaul.css'
 import './levi-carbon.css'
+import './levi-nav.css'
 
 const MarkdownMessage = lazy(() => import('./features/intelligence/MarkdownMessage'))
-import { VoiceGlowInput } from './features/intelligence/VoiceGlowInput'
 import { SettingsPage } from './features/settings/SettingsPage'
 type AssistantSlot = 'primary' | 'secondary'
 interface AssistantConfig { slot: AssistantSlot; provider: string; baseUrl: string; model: string; hasApiKey: boolean }
@@ -38,17 +39,17 @@ interface AssistantConversation { id: string; title: string; updatedAt: string }
 interface AssistantMessage extends MessageUsage { id: string; role: string; responseKind: string; requestStatus: string | null; content: string; provider: string | null; model: string | null; createdAt: string }
 interface AssistantProposal { assistantMessageId: string; status: string }
 
-const navGroups: { title: string; items: { label: string; icon: LucideIcon; disabled?: boolean }[] }[] = [
-  { title: 'WORK', items: [
+const navGroups: { title: string; icon: LucideIcon; items: { label: string; icon: LucideIcon; disabled?: boolean }[] }[] = [
+  { title: 'WORK', icon: LayoutDashboard, items: [
     { label: 'Overview', icon: LayoutDashboard }, { label: 'Projects', icon: FolderKanban }, { label: 'Tasks', icon: ListTodo },
   ] },
-  { title: 'AI', items: [
+  { title: 'AI', icon: Bot, items: [
     { label: 'AI Command', icon: MessageSquareText }, { label: 'AI Workforce', icon: UsersRound }, { label: 'Checkpoint Center', icon: History },
     { label: 'Handoff Center', icon: Workflow }, { label: 'Output Vault', icon: Archive },
   ] },
-  { title: 'ACCOUNTS', items: [{ label: 'Accounts', icon: Users }, { label: 'Browser Profiles', icon: Globe2 }] },
-  { title: 'TIME', items: [{ label: 'Calendar', icon: CalendarDays }, { label: 'Reminders', icon: Bell }] },
-  { title: 'INSIGHT', items: [
+  { title: 'ACCOUNTS', icon: Users, items: [{ label: 'Accounts', icon: Users }, { label: 'Browser Profiles', icon: Globe2 }] },
+  { title: 'TIME', icon: CalendarDays, items: [{ label: 'Calendar', icon: CalendarDays }, { label: 'Reminders', icon: Bell }] },
+  { title: 'INSIGHT', icon: Activity, items: [
     { label: 'Activity', icon: Activity }, { label: 'Analytics', icon: Activity }, { label: 'Settings', icon: Settings },
   ] },
 ]
@@ -81,10 +82,10 @@ function Overview({ db, onAccounts, query, onQuery, onNavigate }: { db: Database
   // oxlint-disable-next-line react/set-state-in-effect -- Load real SQLite summary data when this view is mounted.
   useEffect(() => { void reload().catch(e => setLaunchError(errorMessage(e))) }, [reload])
   const cards = [
-    { label: 'Claude accounts', value: summary?.accounts, detail: 'Registered and available to manage', icon: Users, tone: 'blue' },
-    { label: 'Active projects', value: summary?.projects, detail: 'Projects currently in progress', icon: FolderKanban, tone: 'cyan' },
-    { label: 'Open tasks', value: summary?.tasks, detail: 'Tasks not yet completed', icon: ListTodo, tone: 'violet' },
-    { label: 'Overdue', value: summary?.overdue, detail: 'Open tasks past their deadline', icon: AlertCircle, tone: 'amber' },
+    { label: 'Claude accounts', value: summary?.accounts, detail: 'Registered and available to manage', icon: Users, tone: 'blue', target: 'Accounts' },
+    { label: 'Active projects', value: summary?.projects, detail: 'Projects currently in progress', icon: FolderKanban, tone: 'cyan', target: 'Projects' },
+    { label: 'Open tasks', value: summary?.tasks, detail: 'Tasks not yet completed', icon: ListTodo, tone: 'violet', target: 'Tasks' },
+    { label: 'Overdue', value: summary?.overdue, detail: 'Open tasks past their deadline', icon: AlertCircle, tone: 'amber', target: 'Tasks' },
   ]
   async function launch(id: string, name: string) {
     setLaunchError(''); setLaunchNotice(`Launch requested for ${name}. Executable/profile validation and a process-conflict check are in progress.`)
@@ -95,7 +96,7 @@ function Overview({ db, onAccounts, query, onQuery, onNavigate }: { db: Database
     <div className="content"><div className="page-heading"><div><div className="eyebrow"><span className="live-pulse"/> YOUR OPERATIONS, AT A GLANCE</div><h1>Good afternoon<span className="heading-period">.</span></h1><p className="subtitle">Your Personal AI Operations Headquarters.</p></div><div className="heading-actions"><button className="button-secondary"><CalendarDays size={15}/> Today <ChevronDown size={14}/></button><button className="button-primary" onClick={onAccounts}><Plus size={16}/> Add account</button></div></div>
       <DashboardSearch db={db} query={query} onQuery={onQuery} onNavigate={onNavigate}/>
       {launchNotice && <div className="inline-notice">{launchNotice}</div>}{launchError && <div className="inline-error" role="alert">{launchError}</div>}
-      <section className="metrics-grid">{cards.map(({label,value,detail,icon:Icon,tone})=><article className="metric-card" key={label}><div className="metric-top"><span>{label}</span><div className={`metric-icon ${tone}`}><Icon size={16}/></div></div><div className="metric-value">{value ?? '—'}</div><div className="metric-detail">{detail}</div><div className={`metric-trend ${tone}`}><ArrowDownRight size={13}/>{summary ? 'From local records' : 'Loading records…'}</div></article>)}</section>
+      <section className="metrics-grid">{cards.map(({label,value,detail,icon:Icon,tone,target})=><button type="button" className="metric-card levi-spoke" key={label} onClick={() => onNavigate(target)} title={`Open ${target}`}><div className="metric-top"><span>{label}</span><div className={`metric-icon ${tone}`}><Icon size={16}/></div></div><div className="metric-value">{value ?? '—'}</div><div className="metric-detail">{detail}</div><div className={`metric-trend ${tone}`}><ArrowDownRight size={13}/>{summary ? `Open ${target}` : 'Loading records…'}<ArrowUpRight size={13}/></div></button>)}</section>
       <section className="overview-grid"><article className="panel activity-panel"><div className="panel-heading"><div><h2>Account activity</h2><p>Recorded account events from your workspace</p></div><button className="text-button" onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'Activity' }))}>View activity <ArrowUpRight size={14}/></button></div><div className="chart-placeholder"><div className="chart-y"><span>10</span><span>8</span><span>6</span><span>4</span><span>2</span><span>0</span></div><div className="chart-area"><div className="chart-empty"><div className="chart-orb"><Activity size={20}/></div><strong>Activity timeline is coming in a later phase</strong><span>Browser presence alone does not indicate that a Claude account is working.</span></div><div className="chart-x"><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span><span>SUN</span></div></div></div><div className="chart-legend"><span><i className="legend-dot cyan-dot"/> Working</span><span><i className="legend-dot blue-dot"/> Waiting</span><span><i className="legend-dot grey-dot"/> Idle</span><span className="chart-period">LOCAL HISTORY</span></div></article>
         <article className="panel quick-panel"><div className="panel-heading"><div><h2>Quick launch</h2><p>Open an account in its assigned profile</p></div><Zap size={16} className="quick-zap"/></div>{quickAccounts.length ? <div className="quick-account-list">{quickAccounts.map(account => <div className="quick-account-row" key={account.id}><div><strong>{account.name}</strong><span>{account.browser_name} · {account.profile_name}</span></div><button className="button-open" onClick={() => void launch(account.id, account.name)}>OPEN</button></div>)}</div> : <div className="quick-empty"><div className="quick-icon"><Users size={19}/></div><strong>No accounts registered</strong><span>Add browser profiles, then assign accounts to them.</span><button className="quick-add" onClick={onAccounts}><Plus size={14}/> Register account</button></div>}<div className="quick-foot"><span>ACCOUNT REGISTRY</span><span>{quickAccounts.length ? `${quickAccounts.length} RECENT` : 'READY WHEN YOU ARE'}</span></div></article></section>
       <section className="bottom-grid"><article className="panel list-panel overview-list-panel"><div className="panel-heading"><div><h2>Priority tasks</h2><p>Open work ordered by priority and deadline</p></div><button className="text-button" onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'Tasks' }))}>Open queue <ArrowUpRight size={14}/></button></div>{priorityTasks.length ? priorityTasks.map(task => <button className="overview-task-row" key={task.id} onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'Tasks' }))}><span className={`work-status ${task.status}`}>{task.status.replaceAll('_', ' ')}</span><strong>{task.title}</strong><small>P{task.priority}{task.project_name ? ` · ${task.project_name}` : ''}</small></button>) : <div className="list-empty"><div className="empty-check"><Check size={16}/></div><div><strong>No open tasks</strong><span>Create tasks in the Task Queue.</span></div></div>}</article><article className="panel list-panel overview-list-panel"><div className="panel-heading"><div><h2>Upcoming deadlines</h2><p>From active task records</p></div></div>{upcomingDeadlines.length ? upcomingDeadlines.map(task => <button className="overview-task-row" key={task.id} onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'Tasks' }))}><span className="deadline-date">{task.deadline}</span><strong>{task.title}</strong><small>{task.project_name || 'No project'}</small></button>) : <div className="list-empty"><div className="empty-calendar"><CalendarDays size={16}/></div><div><strong>No upcoming deadlines</strong><span>Task deadlines recorded in the database will appear here.</span></div></div>}</article></section>
@@ -111,10 +112,13 @@ function App() {
   const [dbError, setDbError] = useState('')
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [searchFocused, setSearchFocused] = useState(false)
+  const [history, setHistory] = useState<string[]>([])
+  const [assistantSize, setAssistantSize] = useState<SheetSize>('half')
+  const activeRef = useRef('Overview')
+  const swipe = useRef<{ x: number; y: number; edge: boolean } | null>(null)
+  const wheel = useRef({ dx: 0, until: 0 })
   const [voiceName, setVoiceName] = useState(() => localStorage.getItem('levi.voice.name') ?? '')
   const [speechRate, setSpeechRate] = useState(() => Number(localStorage.getItem('levi.voice.rate') ?? '1'))
-  const reducedMotion = useReducedMotion()
   useEffect(() => { localStorage.setItem('levi.voice.name', voiceName) }, [voiceName])
   useEffect(() => { localStorage.setItem('levi.voice.rate', String(speechRate)) }, [speechRate])
   // oxlint-disable-next-line react/set-state-in-effect -- Connect to the persisted SQLite workspace at startup.
@@ -141,15 +145,10 @@ function App() {
     return () => { stopped = true; window.clearInterval(timer) }
   }, [db])
   useEffect(() => {
-    const handler = (event: Event) => { setActive((event as CustomEvent<string>).detail); setSidebarOpen(false) }
-    window.addEventListener('navigate', handler)
-    return () => window.removeEventListener('navigate', handler)
-  }, [])
-  useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
-        setActive('Overview')
+        window.dispatchEvent(new CustomEvent('navigate', { detail: 'Overview' }))
         requestAnimationFrame(() => document.getElementById('global-record-search')?.focus())
       }
     }
@@ -171,34 +170,114 @@ function App() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])
-  const setNav = (label: string) => { setActive(label); setSidebarOpen(false) }
-  return <div className={`app-shell ${assistantOpen ? 'assistant-expanded' : ''} ${sidebarOpen ? 'sidebar-open' : ''}`}>
+  /* Navigation: every move to another section is recorded, so Back (Alt+Left, the mouse
+     back button or a swipe from the left edge) returns along the same path. */
+  const goTo = (label: string) => {
+    setSidebarOpen(false)
+    const previous = activeRef.current
+    if (previous === label) return
+    activeRef.current = label
+    setHistory(stack => [...stack.slice(-29), previous])
+    setActive(label)
+  }
+  const back = () => {
+    setSidebarOpen(false)
+    if (!history.length) return
+    const previous = history[history.length - 1]
+    activeRef.current = previous
+    setHistory(history.slice(0, -1))
+    setActive(previous)
+  }
+  const groupIndex = Math.max(0, navGroups.findIndex(navGroup => navGroup.items.some(item => item.label === active)))
+  const group = navGroups[groupIndex]
+  const tabIndex = group.items.findIndex(item => item.label === active)
+  const moveTab = (step: number) => {
+    const next = group.items[tabIndex + step]
+    if (next && !next.disabled) goTo(next.label)
+  }
+  // Re-registered on each render so the shortcuts always see the current section and history.
+  useEffect(() => {
+    const onNavigate = (event: Event) => goTo((event as CustomEvent<string>).detail)
+    const onKey = (event: KeyboardEvent) => {
+      if (event.altKey && !event.ctrlKey && !event.shiftKey && /^[1-5]$/.test(event.key)) { event.preventDefault(); goTo(navGroups[Number(event.key) - 1].items[0].label); return }
+      if (event.altKey && event.key === 'ArrowLeft') { event.preventDefault(); back(); return }
+      if (event.ctrlKey && event.key === 'Tab') { event.preventDefault(); moveTab(event.shiftKey ? -1 : 1); return }
+      if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === 'm') { event.preventDefault(); setSidebarOpen(value => !value) }
+    }
+    const onMouse = (event: MouseEvent) => { if (event.button === 3) { event.preventDefault(); back() } }
+    window.addEventListener('navigate', onNavigate)
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('mouseup', onMouse)
+    return () => { window.removeEventListener('navigate', onNavigate); window.removeEventListener('keydown', onKey); window.removeEventListener('mouseup', onMouse) }
+  })
+
+  /* Gestures. Touch or pen: swipe sideways to change tab, swipe in from the left edge to go back.
+     Touchpad: a two-finger sideways swipe changes tab, unless the pointer is over something that scrolls sideways. */
+  function scrollsSideways(target: EventTarget | null) {
+    for (let node = target instanceof Element ? target : null; node && node !== document.body; node = node.parentElement) {
+      if (node.matches('input, textarea, select, [contenteditable="true"]')) return true
+      if (node.scrollWidth > node.clientWidth + 2 && /(auto|scroll)/.test(getComputedStyle(node).overflowX)) return true
+    }
+    return false
+  }
+  function pointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.pointerType === 'mouse') return
+    swipe.current = { x: event.clientX, y: event.clientY, edge: event.clientX - event.currentTarget.getBoundingClientRect().left < 28 }
+  }
+  function pointerUp(event: ReactPointerEvent<HTMLDivElement>) {
+    const start = swipe.current
+    swipe.current = null
+    if (!start) return
+    const dx = event.clientX - start.x
+    const dy = event.clientY - start.y
+    if (Math.abs(dx) < 80 || Math.abs(dy) > Math.abs(dx) * 0.6) return
+    if (start.edge && dx > 0) { if (history.length) back(); else setSidebarOpen(true); return }
+    if (!scrollsSideways(event.target)) moveTab(dx < 0 ? 1 : -1)
+  }
+  function wheelSwipe(event: ReactWheelEvent<HTMLDivElement>) {
+    if (Math.abs(event.deltaX) < Math.abs(event.deltaY) * 1.5 || scrollsSideways(event.target)) return
+    const now = performance.now()
+    if (now < wheel.current.until) return
+    wheel.current.dx += event.deltaX
+    if (Math.abs(wheel.current.dx) > 160) { moveTab(wheel.current.dx > 0 ? 1 : -1); wheel.current = { dx: 0, until: now + 600 } }
+  }
+
+  const GroupIcon = group.icon
+  return <div className={`app-shell levi-nav-shell ${sidebarOpen ? 'sidebar-open' : ''}`}>
     {sidebarOpen && <button type="button" className="sidebar-scrim" aria-label="Close navigation" onClick={() => setSidebarOpen(false)}/>}
-    <aside className="sidebar" aria-label="Main navigation" aria-hidden={!sidebarOpen} inert={!sidebarOpen}>
-      <div className="brand"><div className="brand-mark"><Command size={18}/></div><div><strong>LEVI COMMAND CENTER</strong><span>AI OPERATIONS HEADQUARTERS</span></div></div>
-      <div className="workspace-label">WORKSPACE <ChevronDown size={13}/></div>
-      <div className="workspace"><div className="workspace-avatar">L</div><div><strong>Personal workspace</strong><small>Local environment</small></div><span className="local-dot"/></div>
-      {navGroups.map(group => <div className="nav-group" key={group.title}><div className="nav-caption">{group.title}</div><nav>{group.items.map(({label, icon: Icon, disabled}) => <button key={label} disabled={disabled} title={disabled ? 'LEVI AI is planned for a later phase.' : undefined} className={`nav-item ${active === label ? 'selected' : ''} ${disabled ? 'nav-disabled' : ''}`} onClick={() => !disabled && setNav(label)}><Icon size={17}/><span>{label}</span>{disabled && <small>PLANNED</small>}</button>)}</nav></div>)}
-      <div className="sidebar-bottom"><div className="help-card"><div className="help-icon"><CircleHelp size={16}/></div><strong>Need a hand?</strong><p>Get started with your command center.</p><button onClick={() => setNav('Settings')}>View setup guide <ArrowUpRight size={13}/></button></div><div className="build-label"><span className="online-dot"/> LOCAL SYSTEM <span>v0.2.0</span></div></div>
+    <aside className="sidebar levi-drawer" aria-label="All sections" aria-hidden={!sidebarOpen} inert={!sidebarOpen}>
+      <div className="levi-drawer-head"><div className="brand"><div className="brand-mark"><Command size={18}/></div><div><strong>LEVI COMMAND CENTER</strong><span>ALL SECTIONS · CTRL+M</span></div></div><button type="button" className="levi-drawer-close" onClick={() => setSidebarOpen(false)} aria-label="Close all sections"><X size={18}/></button></div>
+      <div className="levi-drawer-grid">
+        {navGroups.map((navGroup, index) => <div className="nav-group" key={navGroup.title}><div className="nav-caption">{navGroup.title}<kbd>Alt+{index + 1}</kbd></div><nav>{navGroup.items.map(({label, icon: Icon, disabled}) => <button key={label} disabled={disabled} className={`nav-item ${active === label ? 'selected' : ''} ${disabled ? 'nav-disabled' : ''}`} onClick={() => !disabled && goTo(label)}><Icon size={16}/><span>{label}</span></button>)}</nav></div>)}
+      </div>
+      <div className="build-label"><span className="online-dot"/> LOCAL SYSTEM <span>v0.2.0</span></div>
     </aside>
     <main className="main-area">
-      <header className="topbar"><button type="button" className="navigation-toggle" aria-label={sidebarOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(value => !value)}>{sidebarOpen ? <X size={20}/> : <Menu size={20}/>}</button><div className="breadcrumb">LEVI COMMAND CENTER <span>/</span> <strong>{active}</strong></div><div className="top-actions"><BorderBeam size="line" colorVariant="colorful" strength={0.5} theme="dark" active={searchFocused && !reducedMotion} className="top-search-beam"><label className="searchbox"><Search size={15}/><input id="global-record-search" value={query} onFocus={() => { setSearchFocused(true); if (active !== 'Overview') setNav('Overview') }} onBlur={() => setSearchFocused(false)} onChange={e => setQuery(e.target.value)} placeholder="Search anything in LEVI…"/><kbd>Ctrl K</kbd></label></BorderBeam><AppSwitcher /><button className="icon-button" aria-label="Notifications"><Bell size={17}/><i/></button><div className="avatar">L</div></div></header>
-      <div className="workspace-scroll">
-      {dbError ? <div className="database-error"><AlertCircle size={18}/><div><strong>Local database could not be opened</strong><span>{dbError}</span></div></div> : !db ? <div className="database-loading">Opening local workspace…</div> : active === 'Overview' ? <Overview db={db} onAccounts={() => setNav('Accounts')} query={query} onQuery={setQuery} onNavigate={setNav}/> : active === 'AI Workforce' ? <WorkforceCenter db={db}/> : active === 'Accounts' ? <AccountsPage db={db}/> : active === 'Browser Profiles' ? <BrowserProfilesPage db={db}/> : active === 'Projects' ? <ProjectsPage db={db}/> : active === 'Tasks' ? <TasksPage db={db}/> : active === 'Checkpoint Center' ? <CheckpointCenter db={db}/> : active === 'Handoff Center' ? <HandoffCenter db={db}/> : active === 'AI Command' ? <IntelligenceCenter db={db}/> : active === 'Settings' ? <SettingsPage voiceName={voiceName} speechRate={speechRate} onVoiceChange={setVoiceName} onSpeechRateChange={setSpeechRate} onOpenAiSettings={() => setNav('AI Command')}/> : active === 'Reminders' ? <RemindersPage db={db}/> : <div className="content"><div className="future-page"><span className="eyebrow">PLANNED CAPABILITY</span><h1>{active}</h1><p>This area is reserved for a later roadmap phase. No simulated data or functionality is shown here.</p></div></div>}
+      <header className="topbar">
+        <button type="button" className="navigation-toggle" aria-label={sidebarOpen ? 'Close all sections' : 'Open all sections'} title="All sections (Ctrl+M)" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(value => !value)}>{sidebarOpen ? <X size={19}/> : <Menu size={19}/>}</button>
+        {history.length > 0 && <button type="button" className="levi-back" onClick={back} aria-label={`Back to ${history[history.length - 1]}`} title={`Back to ${history[history.length - 1]} (Alt+Left)`}><ChevronLeft size={18}/></button>}
+        <nav className="breadcrumb levi-crumbs" aria-label="You are here"><button type="button" onClick={() => goTo(group.items[0].label)}><GroupIcon size={14}/>{group.title}</button><span>/</span><strong>{active}</strong></nav>
+        <div className="top-actions"><label className="searchbox"><Search size={15}/><input id="global-record-search" value={query} onFocus={() => { if (active !== 'Overview') goTo('Overview') }} onChange={e => setQuery(e.target.value)} placeholder="Search anything in LEVI…"/><kbd>Ctrl K</kbd></label><AppSwitcher /><button type="button" className={`levi-jarvis-button ${assistantOpen ? 'is-open' : ''}`} onClick={() => setAssistantOpen(value => !value)} aria-expanded={assistantOpen} aria-controls="global-assistant-panel" title="JARVIS (Alt+Shift+L)"><Bot size={16}/><span>JARVIS</span><kbd>Alt⇧L</kbd></button><div className="avatar">L</div></div>
+      </header>
+      {group.items.length > 1 && <div className="levi-toptabs" role="tablist" aria-label={`${group.title} sections`}>{group.items.map(({label, icon: Icon, disabled}) => <button key={label} type="button" role="tab" aria-selected={active === label} disabled={disabled} className={active === label ? 'is-on' : ''} onClick={() => goTo(label)}><Icon size={14}/>{label}</button>)}</div>}
+      <div className="workspace-scroll" onPointerDown={pointerDown} onPointerUp={pointerUp} onPointerCancel={() => { swipe.current = null }} onWheel={wheelSwipe}>
+      {dbError ? <div className="database-error"><AlertCircle size={18}/><div><strong>Local database could not be opened</strong><span>{dbError}</span></div></div> : !db ? <div className="database-loading">Opening local workspace…</div> : active === 'Overview' ? <Overview db={db} onAccounts={() => goTo('Accounts')} query={query} onQuery={setQuery} onNavigate={goTo}/> : active === 'AI Workforce' ? <WorkforceCenter db={db}/> : active === 'Accounts' ? <AccountsPage db={db}/> : active === 'Browser Profiles' ? <BrowserProfilesPage db={db}/> : active === 'Projects' ? <ProjectsPage db={db}/> : active === 'Tasks' ? <TasksPage db={db}/> : active === 'Checkpoint Center' ? <CheckpointCenter db={db}/> : active === 'Handoff Center' ? <HandoffCenter db={db}/> : active === 'AI Command' ? <IntelligenceCenter db={db}/> : active === 'Settings' ? <SettingsPage voiceName={voiceName} speechRate={speechRate} onVoiceChange={setVoiceName} onSpeechRateChange={setSpeechRate} onOpenAiSettings={() => goTo('AI Command')}/> : active === 'Reminders' ? <RemindersPage db={db}/> : <div className="content"><div className="future-page"><span className="eyebrow">PLANNED CAPABILITY</span><h1>{active}</h1><p>This area is reserved for a later roadmap phase. No simulated data or functionality is shown here.</p></div></div>}
       </div>
+      <nav className="levi-tabbar" aria-label="Groups">{navGroups.map((navGroup, index) => { const Icon = navGroup.icon; return <button key={navGroup.title} type="button" className={index === groupIndex ? 'is-on' : ''} aria-current={index === groupIndex ? 'page' : undefined} onClick={() => goTo(navGroup.items[0].label)} title={`${navGroup.title} (Alt+${index + 1})`}><Icon size={18}/><span>{navGroup.title}</span></button> })}</nav>
     </main>
-    <GlobalAssistant activeSection={active} open={assistantOpen} onOpenChange={setAssistantOpen} onOpenFull={() => { setAssistantOpen(false); setNav('AI Command') }} voiceName={voiceName} speechRate={speechRate}/>
+    <GlobalAssistant activeSection={active} open={assistantOpen} size={assistantSize} onSizeChange={setAssistantSize} onOpenChange={setAssistantOpen} onOpenFull={() => { setAssistantOpen(false); goTo('AI Command') }} voiceName={voiceName} speechRate={speechRate}/>
+    <ConfirmHost/>
   </div>
 }
 
-function GlobalAssistant({ activeSection, open, onOpenChange, onOpenFull, voiceName, speechRate }: { activeSection: string; open: boolean; onOpenChange: (open: boolean) => void; onOpenFull: () => void; voiceName: string; speechRate: number }) {
+function GlobalAssistant({ activeSection, open, size, onSizeChange, onOpenChange, onOpenFull, voiceName, speechRate }: { activeSection: string; open: boolean; size: SheetSize; onSizeChange: (size: SheetSize) => void; onOpenChange: (open: boolean) => void; onOpenFull: () => void; voiceName: string; speechRate: number }) {
   const [configs, setConfigs] = useState<Partial<Record<AssistantSlot, AssistantConfig>>>({})
   const [conversationId, setConversationId] = useState('')
   const [messages, setMessages] = useState<AssistantMessage[]>([])
   const [proposals, setProposals] = useState<AssistantProposal[]>([])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
-  const [responseSequence, setResponseSequence] = useState(0)
+  const [, setResponseSequence] = useState(0)
   const [thought, setThought] = useState<{status:ThoughtLineStatus;startedAt:number;finishedAt?:number;activity:string;assistantMessageId?:string}|null>(null)
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null)
   const cancelRequestedRef = useRef(false)
@@ -304,31 +383,26 @@ function GlobalAssistant({ activeSection, open, onOpenChange, onOpenFull, voiceN
     setDraft(prompt)
     requestAnimationFrame(() => document.getElementById('global-assistant-input')?.focus())
   }
-  return <>
-    <button type="button" className={`global-assistant-launcher ${open ? 'is-open' : ''}`} onClick={() => { if (!open) setError(''); onOpenChange(!open) }} aria-expanded={open} aria-controls="global-assistant-panel" aria-label={open ? 'Close LEVI assistant' : 'Open LEVI assistant'} title="LEVI Assistant · Alt+Shift+L">
-      {open ? <X size={19}/> : <Bot size={20}/>}<span>{open ? 'Close LEVI' : 'Ask LEVI'}</span><kbd>Alt ⇧ L</kbd>
-    </button>
-    {open && <section id="global-assistant-panel" className="global-assistant-panel" aria-label="Global LEVI assistant">
-      <header className="global-assistant-header"><div className="global-assistant-mark" aria-hidden="true"><Sparkles size={17}/></div><div><strong>LEVI Assistant</strong><span>{busy ? 'PROCESSING' : speaking ? 'SPEAKING WITH LOCAL WINDOWS VOICE' : config?.hasApiKey ? `${config.provider} · ${config.model || 'model not selected'}` : 'PROVIDER SETUP REQUIRED'} · {activeSection}</span></div>{speaking&&<button type="button" className="global-assistant-stop-speech" onClick={() => { window.speechSynthesis?.cancel(); setSpeaking(false) }} aria-label="Stop speech"><Square size={13}/></button>}<button type="button" className="global-assistant-full" onClick={onOpenFull}>AI Command</button><button type="button" className="global-assistant-close" onClick={() => onOpenChange(false)} aria-label="Close assistant"><X size={16}/></button></header>
-      <div className="global-assistant-messages" aria-live="polite">
-        {!conversationId && !error && <p className="global-assistant-empty">Loading your saved conversation…</p>}
-        {messages.map(message => <article key={message.id} className={`global-assistant-message ${message.role}`}>
-          <div className="global-assistant-message-meta"><span>{message.role === 'user' ? 'YOU' : message.responseKind === 'live_ai' ? 'LEVI · LIVE AI' : message.responseKind.replaceAll('_', ' ')}</span>{message.model && <small>{message.model}</small>}{usageLabel(message) && <small title="Reported by the provider">{usageLabel(message)}</small>}</div>
-          {thought?.assistantMessageId===message.id&&<ThoughtLine status={thought.status} startedAt={thought.startedAt} finishedAt={thought.finishedAt} activity={thought.activity} reducedMotion={reducedMotion}/>}<Suspense fallback={<p>Rendering response…</p>}><MarkdownMessage content={message.content}/></Suspense>
-          {message.role === 'assistant' && message.responseKind === 'live_ai' && <button type="button" className="global-assistant-speak" onClick={() => speak(message)}><Volume2 size={13}/> Speak locally</button>}
-        </article>)}
-        {busy&&thought?.status==='working'&&<ThoughtLine status={thought.status} startedAt={thought.startedAt} activity={thought.activity} reducedMotion={reducedMotion}/>}
-      </div>
-      {(error || notice) && <div className={error ? 'global-assistant-error' : 'global-assistant-notice'} role={error ? 'alert' : 'status'}>{error || notice}</div>}
-      {proposals.some(proposal => proposal.status === 'proposed') && <div className="global-assistant-approval"><strong>Action awaiting review</strong><span>Open AI Command to inspect its exact parameters and approve or reject it.</span><button type="button" onClick={onOpenFull}>Review proposal</button></div>}
-      <details className="global-assistant-privacy"><summary>Privacy and context</summary><span>Text is sent only when submitted, with workspace context bounded by the Rust backend. Speech playback uses the local Windows voice engine. Microphone input is not enabled.</span></details>
-      <form className="global-assistant-composer" onSubmit={event => void sendMessage(event)}>
-        <VoiceGlowInput processing={busy} error={Boolean(error)} responseKey={responseSequence} className="global-assistant-beam">
-          <PromptBar simple id="global-assistant-input" value={draft} onChange={setDraft} placeholder={`Ask LEVI about ${activeSection.toLowerCase()} or your workspace…`} disabled={busy} busy={busy} canSend={Boolean(!busy&&draft.trim()&&config?.hasApiKey&&config.model)} model={config?.model??''} onStop={()=>void stopGeneration()} helper="Enter to send · Shift+Enter for a new line."><ComposerActionMenu onDraftPrompt={draftPrompt}/></PromptBar>
-        </VoiceGlowInput>
-      </form>
-    </section>}
-  </>
+  const status = busy ? 'Working' : speaking ? 'Speaking with a local Windows voice' : config?.hasApiKey ? `${config.provider} · ${config.model || 'no model selected'}` : 'Set up a provider in AI Command'
+  return <BottomSheet open={open} onClose={() => onOpenChange(false)} size={size} onSizeChange={onSizeChange} id="global-assistant-panel" className="jarvis-sheet"
+    title={<><Bot size={16}/>JARVIS</>}
+    headerExtra={<span className="jarvis-status">{status} · {activeSection}</span>}
+    footer={<form className="global-assistant-composer" onSubmit={event => void sendMessage(event)}>
+      <PromptBar simple id="global-assistant-input" value={draft} onChange={setDraft} placeholder={`Ask about ${activeSection.toLowerCase()} or anything in your workspace…`} disabled={busy} busy={busy} canSend={Boolean(!busy&&draft.trim()&&config?.hasApiKey&&config.model)} model={config?.model??''} onStop={()=>void stopGeneration()} helper="Enter to send · Shift+Enter for a new line"><ComposerActionMenu onDraftPrompt={draftPrompt}/></PromptBar>
+    </form>}>
+    <div className="global-assistant-messages" aria-live="polite">
+      {!conversationId && !error && <p className="global-assistant-empty">Loading your saved conversation…</p>}
+      {messages.map(message => <article key={message.id} className={`global-assistant-message ${message.role}`}>
+        <div className="global-assistant-message-meta"><span>{message.role === 'user' ? 'You' : message.responseKind === 'live_ai' ? 'JARVIS' : message.responseKind.replaceAll('_', ' ')}</span>{message.model && <small>{message.model}</small>}{usageLabel(message) && <small title="Reported by the provider">{usageLabel(message)}</small>}</div>
+        {thought?.assistantMessageId===message.id&&<ThoughtLine status={thought.status} startedAt={thought.startedAt} finishedAt={thought.finishedAt} activity={thought.activity} reducedMotion={reducedMotion}/>}<Suspense fallback={<p>Rendering response…</p>}><MarkdownMessage content={message.content}/></Suspense>
+        {message.role === 'assistant' && message.responseKind === 'live_ai' && <button type="button" className="global-assistant-speak" onClick={() => speak(message)}><Volume2 size={13}/> Read aloud</button>}
+      </article>)}
+      {busy&&thought?.status==='working'&&<ThoughtLine status={thought.status} startedAt={thought.startedAt} activity={thought.activity} reducedMotion={reducedMotion}/>}
+    </div>
+    {(error || notice) && <div className={error ? 'global-assistant-error' : 'global-assistant-notice'} role={error ? 'alert' : 'status'}>{error || notice}</div>}
+    {proposals.some(proposal => proposal.status === 'proposed') && <div className="global-assistant-approval"><strong>An action is waiting for your approval</strong><span>Review its exact details in AI Command before anything is created.</span><button type="button" className="button-primary" onClick={onOpenFull}>Review</button></div>}
+    <div className="jarvis-footnote">{speaking && <button type="button" className="button-secondary" onClick={() => { window.speechSynthesis?.cancel(); setSpeaking(false) }}><Square size={12}/> Stop reading</button>}<button type="button" className="text-button" onClick={onOpenFull}>Open full AI Command</button><span>Text is sent only when you press Send. Read-aloud uses the local Windows voice.</span></div>
+  </BottomSheet>
 }
 
 export default App

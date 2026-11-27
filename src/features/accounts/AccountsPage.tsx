@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { invoke } from '@tauri-apps/api/core'
 import type Database from '@tauri-apps/plugin-sql'
 import { Archive, ArrowDownWideNarrow, ExternalLink, Pencil, Plus, Search, UserRound, X } from 'lucide-react'
+import { confirmAction } from '../shell/confirm'
 import { errorMessage, newId } from '../../lib/database'
 import type { AccountRecord, AccountStatus, ProfileOption } from './types'
 import type { LaunchFeedback } from '../browsers/types'
@@ -81,7 +82,7 @@ export function AccountsPage({ db, onChanged }: Props) {
   }
 
   async function archive(account: AccountRecord) {
-    if (!window.confirm(`Archive “${account.name}”? Its history will be preserved.`)) return
+    if (!(await confirmAction({ title: `Archive “${account.name}”?`, message: 'The account moves to the archive. Its history is kept.', confirmLabel: 'Archive account' }))) return
     try {
       await invoke('archive_account', { accountId: account.id })
       setNotice('Account archived.'); await reload()

@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import type Database from '@tauri-apps/plugin-sql'
 import { AlertTriangle, FolderOpen, Globe2, HardDrive, Play, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from 'lucide-react'
 import { errorMessage, newId } from '../../lib/database'
+import { confirmAction } from '../shell/confirm'
 import type { BrowserFamily } from '../accounts/types'
 import type { BrowserCandidate, BrowserRecord, LaunchFeedback, ProfileCandidate } from './types'
 import './browsers.css'
@@ -148,11 +149,22 @@ export function BrowserProfilesPage({ db }: Props) {
   }
 
   async function removeRegistration(profile: RawProfile) {
-    if (profile.account_count) { setError(`Reassign or archive the ${profile.account_count} linked account${profile.account_count === 1 ? '' : 's'} before removing this profile registration.`); return }
-    if (!window.confirm(`Remove the registration for “${profile.profileName}”? The browser folder and its contents will not be deleted.`)) return
+    setError('')
     try {
+      // An account cannot exist without a profile, so deleting a profile archives its accounts too.
+      const linked = profile.account_count ? await db.select<{ name: string }[]>('SELECT name FROM accounts WHERE browser_profile_id=? AND archived_at IS NULL ORDER BY name', [profile.id]) : []
+      const confirmed = await confirmAction({
+        title: `Delete “${profile.profileName}”?`,
+        message: linked.length
+          ? `The profile is removed from Command Center. An account can't exist without a profile, so ${linked.length === 1 ? 'this linked account is' : `these ${linked.length} linked accounts are`} archived too, with their history kept. The browser's own folder on disk is not touched.`
+          : "The profile is removed from Command Center. The browser's own folder on disk is not touched.",
+        details: linked.map(account => account.name),
+        confirmLabel: linked.length ? `Delete and archive ${linked.length}` : 'Delete profile',
+      })
+      if (!confirmed) return
+      if (linked.length) await db.execute("UPDATE accounts SET archived_at=datetime('now'),updated_at=datetime('now') WHERE browser_profile_id=? AND archived_at IS NULL", [profile.id])
       await db.execute("UPDATE browser_profiles SET archived_at=datetime('now'),updated_at=datetime('now') WHERE id=?", [profile.id])
-      setNotice('Profile registration removed. Browser profile data was left untouched.'); await reload()
+      setNotice(linked.length ? `Profile deleted and ${linked.length} linked account${linked.length === 1 ? '' : 's'} archived. Browser data on disk was left untouched.` : 'Profile deleted. Browser data on disk was left untouched.'); await reload()
     } catch (e) { setError(errorMessage(e)) }
   }
 

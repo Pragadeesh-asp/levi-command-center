@@ -6,6 +6,7 @@ import {
   Sparkles, Square, Trash2, Volume2, Wifi,
 } from 'lucide-react'
 import { errorMessage } from '../../lib/database'
+import { confirmAction } from '../shell/confirm'
 import { VoiceGlowInput } from './VoiceGlowInput'
 import { ComposerActionMenu } from './ComposerActionMenu'
 import { ThoughtLine, type ThoughtLineStatus } from './ThoughtLine'
@@ -144,7 +145,7 @@ export function IntelligenceCenter({db}:{db:Database}) {
   async function removeKey(){setBusy(true);setError('');setNotice('');try{await invoke('remove_ai_api_key',{slot:providerSlot});setConfig({...config,hasApiKey:false,credentialStatus:'credential_missing'});setNotice('Provider API key removed from Windows Credential Manager.')}catch(e){setError(errorMessage(e))}finally{setBusy(false)}}
   async function discoverModels(){
     if(!config.hasApiKey||!config.baseUrl)return
-    const confirmed=window.confirm(`LEVI will send an authenticated model-list request to ${config.baseUrl}. This sends the provider key to that configured endpoint, but no prompt or workspace data. Continue?`)
+    const confirmed=await confirmAction({title:'Load the model list?',message:`LEVI asks ${config.baseUrl} for its models. That sends your provider key to this endpoint, but no prompt or workspace data.`,confirmLabel:'Load models',tone:'primary'})
     if(!confirmed)return
     setDiscoveringModels(true);setError('');setNotice('')
     try{
@@ -154,7 +155,7 @@ export function IntelligenceCenter({db}:{db:Database}) {
     }catch(e){setError(errorMessage(e))}finally{setDiscoveringModels(false)}
   }
   async function testConnection(){
-    if(!window.confirm('LEVI will send one short test prompt to the configured provider. This may incur a small provider charge. Continue?'))return
+    if(!(await confirmAction({title:'Test this provider?',message:'LEVI sends one short test prompt to the configured provider. This may cost a small provider charge.',confirmLabel:'Send test',tone:'primary'})))return
     setTesting(true);setConnectionChecks(current=>({...current,[providerSlot]:null}));setError('');setNotice('')
     try{const result=await invoke<{connected:boolean;message:string;provider:string;model:string}>('test_ai_connection',{slot:providerSlot});setConnectionChecks(current=>({...current,[providerSlot]:true}));setNotice(`${result.message} Profile: ${providerSlot}; protocol: ${result.provider}; model: ${result.model}.`)}
     catch(e){setConnectionChecks(current=>({...current,[providerSlot]:false}));setError(errorMessage(e))}finally{setTesting(false)}
@@ -205,8 +206,8 @@ export function IntelligenceCenter({db}:{db:Database}) {
       const target=providerConfigs[targetSlot]
       if(!config.fallbackEnabled||!target.hasApiKey||!target.model||!target.baseUrl)return
       const uncertain=retryContext.outcomeUnknown?' The earlier request may already have been processed and charged, so this can cause a duplicate charge.':''
-      if(!window.confirm(`Send a new request through ${providerProfileName(targetSlot)} using a new request ID?${uncertain} LEVI will not automatically switch providers.`))return
-    }else if(retryContext.outcomeUnknown&&!window.confirm('The previous provider request may already have been processed and charged. LEVI will create a new request ID; this may result in a duplicate charge. Send again?'))return
+      if(!(await confirmAction({title:`Send through ${providerProfileName(targetSlot)}?`,message:`LEVI sends a new request with a new request ID.${uncertain} It never switches providers on its own.`,confirmLabel:'Send again',tone:'primary'})))return
+    }else if(retryContext.outcomeUnknown&&!(await confirmAction({title:'Send this request again?',message:'The previous request may already have been processed and charged. Sending again uses a new request ID and may cause a duplicate charge.',confirmLabel:'Send again'})))return
     const sentText=retryContext.text
     setRetryContext(null)
     if(await submitProviderMessage(sentText,targetSlot))setNotice(`The new request through ${providerProfileName(targetSlot)} completed and was saved. Review it before continuing.`)
@@ -217,7 +218,7 @@ export function IntelligenceCenter({db}:{db:Database}) {
   async function localSummary(){if(!conversationId)return;setBusy(true);setAssistantState('PROCESSING');setError('');try{await invoke('add_local_workforce_summary',{conversationId});await reloadMessages();await reloadConversations()}catch(e){setError(errorMessage(e));setAssistantState('ERROR')}finally{setBusy(false)}}
   async function makeHandoff(){if(!conversationId||!handoffTask)return;setBusy(true);setAssistantState('PROCESSING');setError('');try{await invoke('add_handoff_prompt',{input:{conversationId,taskId:handoffTask,kind:handoffKind}});await reloadMessages();await reloadConversations()}catch(e){setError(errorMessage(e));setAssistantState('ERROR')}finally{setBusy(false)}}
   async function resolveAction(proposal:ActionProposal,approve:boolean){
-    if(approve&&!window.confirm(`Approve this exact action?\n\n${proposalSummary(proposal,projects)}\n\nLEVI will create this record in the local workspace.`))return
+    if(approve&&!(await confirmAction({title:'Approve this action?',message:'LEVI will create this record in your local workspace exactly as shown.',details:[proposalSummary(proposal,projects)],confirmLabel:'Approve',tone:'primary'})))return
     setBusy(true);setAssistantState(approve?'EXECUTING':'PROCESSING');setError('');setNotice('')
     try{
       const updated=await invoke<ActionProposal>('resolve_ai_action_proposal',{proposalId:proposal.id,expectedHash:proposal.contentHash,approve})
